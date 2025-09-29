@@ -180,23 +180,20 @@ ALTER TABLE HeritageSites
 -- ===============================
 
 -- Heritage Sites
-INSERT INTO HeritageSites (name, location, type, opening_hours, ticket_price, unesco_status, description) VALUES
-('Lalbagh Fort','Dhaka, Bangladesh','Mughal Fort','09:00-17:00', 100.00, 'Tentative','17th-century Mughal fort in Dhaka'),
-('Ahsan Manzil','Dhaka, Bangladesh','Palace Museum','10:00-17:00', 50.00, 'None','The Pink Palace museum of Dhaka'),
-('Mahasthangarh','Bogura, Bangladesh','Ancient City','08:00-18:00', 80.00, 'World Heritage','Ancient archaeological site'),
-('Sixty Dome Mosque','Bagerhat, Bangladesh','Mosque','09:00-18:00', 120.00, 'World Heritage','Historic mosque built in 15th century'),
-('Jatiyo Sangsad Bhaban','Dhaka, Bangladesh','Parliament Building','09:00-17:00', 30.00, 'None','Iconic national parliament building designed by Louis Kahn'),
-('Kantajew Temple','Dinajpur, Bangladesh','Hindu Temple','08:00-17:00', 60.00, 'None','18th-century terracotta temple with intricate carvings'),
-('Panam City','Sonargaon, Narayanganj','Ancient City','08:00-18:00', 40.00, 'Tentative','Ruins of a historic city along the river'),
-('Shat Gambuj Masjid','Bagerhat, Bangladesh','Mosque','09:00-18:00', 100.00, 'World Heritage','Famous mosque with 60 domes, part of historic mosque city'),
-('Bagha Mosque','Rajshahi, Bangladesh','Mosque','08:00-17:00', 70.00, 'Tentative','Historic 16th-century mosque with terracotta decorations'),
-('Lalmai Hills Monastery','Comilla, Bangladesh','Monastery','09:00-16:00', 50.00, 'None','Ancient Buddhist monastery on Lalmai Hills'),
-('Paharpur Buddhist Monastery','Naogaon, Bangladesh','Monastery','08:00-18:00', 120.00, 'World Heritage','Ruins of the largest Buddhist vihara in South Asia'),
-('Mahasthangarh Museum','Bogura, Bangladesh','Museum','09:00-17:00', 60.00, 'None','Museum displaying artifacts from Mahasthangarh archaeological site'),
-('Bagerhat Museum','Bagerhat, Bangladesh','Museum','09:00-17:00', 40.00, 'None','Museum for Bagerhat historic mosque city'),
-('Shat Gambuj Archaeological Park','Bagerhat, Bangladesh','Historic Site','08:00-18:00', 80.00, 'World Heritage','Park containing multiple historic mosques and ruins'),
-('Chhota Sona Mosque','Pabna, Bangladesh','Mosque','08:00-17:00', 90.00, 'Tentative','Small golden mosque from 15th century'),
-('Fatrar Dighi Mosque','Rajshahi, Bangladesh','Mosque','09:00-17:00', 50.00, 'None','Historic mosque near Fatrar Dighi pond');
+INSERT INTO `heritagesites` (`site_id`, `name`, `location`, `type`, `opening_hours`, `ticket_price`, `unesco_status`, `description`, `created_at`) VALUES
+(1, 'Lalbagh Fort', 'Dhaka, Bangladesh', 'Mughal Fort', '09:00-17:00', 100.00, 'Tentative', '17th-century Mughal fort in Dhaka', '2025-09-28 23:22:05'),
+(2, 'Ahsan Manzil', 'Dhaka, Bangladesh', 'Palace Museum', '10:00-17:00', 50.00, 'None', 'The Pink Palace museum of Dhaka', '2025-09-28 23:22:05'),
+(3, 'Mahasthangarh', 'Bogura, Bangladesh', 'Ancient City', '08:00-18:00', 80.00, 'World Heritage', 'Ancient archaeological site', '2025-09-28 23:22:05'),
+(4, 'Sixty Dome Mosque', 'Bagerhat, Bangladesh', 'Mosque', '09:00-18:00', 120.00, 'World Heritage', 'Historic mosque built in 15th century', '2025-09-28 23:22:05'),
+(5, 'Jatiyo Sangsad Bhaban', 'Dhaka, Bangladesh', 'Parliament Building', '09:00-17:00', 30.00, 'None', 'Iconic national parliament building designed by Louis Kahn', '2025-09-28 23:39:33'),
+(6, 'Kantajew Temple', 'Dinajpur, Bangladesh', 'Hindu Temple', '08:00-17:00', 60.00, 'None', '18th-century terracotta temple with intricate carvings', '2025-09-28 23:39:33'),
+(7, 'Panam City', 'Sonargaon, Narayanganj', 'Ancient City', '08:00-18:00', 40.00, 'Tentative', 'Ruins of a historic city along the river', '2025-09-28 23:39:33'),
+(8, 'Bagha Mosque', 'Rajshahi, Bangladesh', 'Mosque', '08:00-17:00', 70.00, 'Tentative', 'Historic 16th-century mosque with terracotta decorations', '2025-09-28 23:39:33'),
+(9, 'Lalmai Hills Monastery', 'Comilla, Bangladesh', 'Monastery', '09:00-16:00', 50.00, 'None', 'Ancient Buddhist monastery on Lalmai Hills', '2025-09-28 23:39:33'),
+(10, 'Paharpur Buddhist Monastery', 'Naogaon, Bangladesh', 'Monastery', '08:00-18:00', 120.00, 'World Heritage', 'Ruins of the largest Buddhist vihara in South Asia', '2025-09-28 23:39:33'),
+(11, 'Mahasthangarh Museum', 'Bogura, Bangladesh', 'Museum', '09:00-17:00', 60.00, 'None', 'Museum displaying artifacts from Mahasthangarh archaeological site', '2025-09-28 23:39:33'),
+(12, 'Bagerhat Museum', 'Bagerhat, Bangladesh', 'Museum', '09:00-17:00', 40.00, 'None', 'Museum for Bagerhat historic mosque city', '2025-09-28 23:39:33'),
+(13, 'Chhota Sona Mosque', 'Pabna, Bangladesh', 'Mosque', '08:00-17:00', 90.00, 'Tentative', 'Small golden mosque from 15th century', '2025-09-28 23:39:33');
 
 -- Events
 INSERT INTO Events (site_id, name, event_date, event_time, description, ticket_price, capacity) VALUES

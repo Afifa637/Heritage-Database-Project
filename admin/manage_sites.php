@@ -283,7 +283,7 @@ body { background-color: #f8f9fa; }
                     <td class="truncate" title="<?php echo htmlspecialchars($s['description']); ?>"><?php echo htmlspecialchars($s['description']); ?></td>
                     <td><?php echo htmlspecialchars($s['created_at']); ?></td>
                     <td>
-                        <a class="btn btn-sm btn-info" href="site_view.php?id=<?php echo (int)$s['site_id']; ?>">View</a>
+                        <a href="../site_view.php?id=<?php echo (int)$s['site_id']; ?>">View</a>
                         <a class="btn btn-sm btn-outline-secondary" href="site_edit.php?id=<?php echo (int)$s['site_id']; ?>">Edit</a>
 
                         <!-- Delete: POST form with CSRF token -->
