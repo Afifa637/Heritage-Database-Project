@@ -1,44 +1,93 @@
 <?php
+session_start();
 require_once __DIR__ . '/includes/db_connect.php';
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); exit; }
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo "Method not allowed.";
+    exit;
+}
 
-$site_id  = isset($_POST['site_id']) ? (int)$_POST['site_id'] : null;
-$event_id = isset($_POST['event_id']) ? (int)$_POST['event_id'] : null;
-$name     = trim($_POST['name'] ?? '');
-$email    = trim($_POST['email'] ?? '');
-$phone    = trim($_POST['phone'] ?? '');
-$tickets  = max(1, (int)($_POST['no_of_tickets'] ?? 1));
-$method   = $_POST['method'] ?? 'cash';
+// --- Get & validate input ---
+$site_id  = isset($_POST['site_id']) && $_POST['site_id'] !== '' ? (int)$_POST['site_id'] : null;
+$event_id = isset($_POST['event_id']) && $_POST['event_id'] !== '' ? (int)$_POST['event_id'] : null;
+$tickets  = isset($_POST['no_of_tickets']) ? (int)$_POST['no_of_tickets'] : 1;
+$tickets  = max(1, $tickets);
 
-if ($site_id === null && $event_id === null) die("Booking must reference a site or event");
-if ($name === '') die("Name required");
+// Allowed payment methods
+$allowed_methods = ['bkash','nagad','rocket','card'];
+$method = isset($_POST['method']) ? strtolower(trim($_POST['method'])) : 'bkash';
+if (!in_array($method, $allowed_methods, true)) {
+    $method = 'bkash'; // fallback
+}
 
-// Visitor (insert if new)
+if ($site_id === null && $event_id === null) {
+    die("Booking must reference a site or event.");
+}
+
+// --- If event_id provided ensure it exists ---
+if ($event_id !== null) {
+    $q = $pdo->prepare("SELECT event_id FROM Events WHERE event_id = ?");
+    $q->execute([$event_id]);
+    if (!$q->fetchColumn()) {
+        die("Event not found.");
+    }
+}
+
+// --- If site_id provided ensure it exists ---
+if ($site_id !== null) {
+    $q = $pdo->prepare("SELECT site_id FROM HeritageSites WHERE site_id = ?");
+    $q->execute([$site_id]);
+    if (!$q->fetchColumn()) {
+        die("Site not found.");
+    }
+}
+
 $pdo->beginTransaction();
 try {
-    $visitor_id = null;
-    if ($email) {
-        $check = $pdo->prepare("SELECT visitor_id FROM Visitors WHERE email=?");
+    // Determine visitor
+    if (isset($_SESSION['visitor_id']) && is_numeric($_SESSION['visitor_id'])) {
+        $visitor_id = (int)$_SESSION['visitor_id'];
+    } else {
+        // Guest must provide name & email
+        $name  = trim($_POST['name'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+        $phone = trim($_POST['phone'] ?? '');
+        if ($name === '' || $email === '') {
+            throw new Exception("Name and Email required for guest booking.");
+        }
+
+        // Check if visitor exists by email
+        $check = $pdo->prepare("SELECT visitor_id FROM Visitors WHERE email = ?");
         $check->execute([$email]);
         $visitor_id = $check->fetchColumn();
-    }
-    if (!$visitor_id) {
-        $ins = $pdo->prepare("INSERT INTO Visitors (name,email,phone) VALUES (?,?,?)");
-        $ins->execute([$name,$email,$phone]);
-        $visitor_id = $pdo->lastInsertId();
+
+        if (!$visitor_id) {
+            $ins = $pdo->prepare("INSERT INTO Visitors (name,email,phone,password_hash) VALUES (?,?,?,?)");
+            // Empty password hash for guest, or generate a random one
+            $ins->execute([$name, $email, $phone, password_hash(bin2hex(random_bytes(5)), PASSWORD_DEFAULT)]);
+            $visitor_id = $pdo->lastInsertId();
+        } else {
+            $visitor_id = (int)$visitor_id;
+        }
     }
 
-    // Insert booking
-    $stmt = $pdo->prepare("INSERT INTO Bookings (visitor_id, site_id, event_id, no_of_tickets, booking_date) VALUES (?,?,?,?,NOW())");
-    $stmt->execute([$visitor_id, $site_id, $event_id, $tickets]);
+    // Insert booking with pending status
+    $stmt = $pdo->prepare("
+        INSERT INTO Bookings 
+        (visitor_id, site_id, event_id, no_of_tickets, booking_date, payment_method, payment_status)
+        VALUES (?,?,?,?,NOW(),?, 'pending')
+    ");
+    $stmt->execute([$visitor_id, $site_id, $event_id, $tickets, $method]);
     $booking_id = $pdo->lastInsertId();
 
-    // Redirect to payment page
     $pdo->commit();
-    header("Location: payment_process.php?booking_id=$booking_id&method=" . urlencode($method));
+
+    // Redirect to payment page
+    header("Location: payment_process.php?booking_id=" . (int)$booking_id);
     exit;
+
 } catch (Exception $e) {
     $pdo->rollBack();
-    die("Booking failed: " . $e->getMessage());
+    die("Booking failed: " . htmlspecialchars($e->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE));
 }

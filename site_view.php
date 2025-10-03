@@ -1,4 +1,5 @@
 <?php
+session_start();
 require_once __DIR__ . '/includes/db_connect.php';
 
 // ----------------- Validate Input -----------------
@@ -9,36 +10,20 @@ if (!$site_id) {
     exit;
 }
 
-/* ----------------- SQL QUERIES USED -----------------
-1. Fetch site details:
-   SELECT * FROM HeritageSites WHERE site_id = ?
-
-2. Fetch events for site:
-   SELECT * FROM Events WHERE site_id = ? ORDER BY event_date
-
-3. Fetch reviews with visitor info:
-   SELECT r.*, v.name AS visitor_name 
-   FROM Reviews r 
-   JOIN Visitors v USING (visitor_id) 
-   WHERE r.site_id = ? 
-   ORDER BY review_date DESC 
-   LIMIT 20
--------------------------------------------------------*/
-
 // ----------------- Fetch Site Details -----------------
 $stmt = $pdo->prepare("SELECT * FROM HeritageSites WHERE site_id = ?");
 $stmt->execute([$site_id]);
-$site = $stmt->fetch();
+$site = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$site) {
     http_response_code(404);
     echo "Site not found.";
     exit;
 }
 
-// ----------------- Fetch Events -----------------
-$evStmt = $pdo->prepare("SELECT * FROM Events WHERE site_id = ? ORDER BY event_date");
+// ----------------- Fetch Events (all for this site) -----------------
+$evStmt = $pdo->prepare("SELECT * FROM Events WHERE site_id = ? ORDER BY event_date ASC");
 $evStmt->execute([$site_id]);
-$events = $evStmt->fetchAll();
+$events = $evStmt->fetchAll(PDO::FETCH_ASSOC);
 
 // ----------------- Fetch Reviews -----------------
 $revStmt = $pdo->prepare("
@@ -50,89 +35,120 @@ $revStmt = $pdo->prepare("
     LIMIT 20
 ");
 $revStmt->execute([$site_id]);
-$reviews = $revStmt->fetchAll();
+$reviews = $revStmt->fetchAll(PDO::FETCH_ASSOC);
+
+$loggedIn = isset($_SESSION['visitor_id']);
 ?>
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title><?= htmlspecialchars($site['name']) ?> - Heritage Site</title>
-  <link rel="stylesheet" href="assets/css/style.css">
-  <style>
-    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f7f9fb; }
-    header, footer { background: #003366; color: #fff; padding: 15px; text-align: center; }
-    main { max-width: 900px; margin: 20px auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 3px 10px rgba(0,0,0,.1); }
-    h1, h2, h3 { color: #003366; }
-    a { color: #003366; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    form { margin-top: 15px; padding: 10px; border: 1px solid #ddd; background: #f9f9f9; border-radius: 6px; }
-    label { display: block; margin: 8px 0; }
-    input, select, textarea { width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px; }
-    button { background: #003366; color: #fff; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; }
-    button:hover { background: #0055aa; }
-    .review { border-bottom: 1px solid #eee; padding: 10px 0; }
-    .review strong { color: #222; }
-    .review small { color: #666; }
-    ul { padding-left: 20px; }
-    .event-card { background: #eef4fa; padding: 10px; margin-bottom: 10px; border-radius: 6px; }
-  </style>
+  <title><?= htmlspecialchars($site['name'], ENT_QUOTES | ENT_SUBSTITUTE) ?> - Heritage Site</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 </head>
-<body>
-<header>
-  <h1><?= htmlspecialchars($site['name']) ?></h1>
+<body class="bg-light">
+
+<header class="bg-primary text-white text-center py-5">
+  <h1><?= htmlspecialchars($site['name'], ENT_QUOTES | ENT_SUBSTITUTE) ?></h1>
+  <p class="lead">Discover the history, culture, and beauty of this heritage treasure</p>
 </header>
 
-<main>
-  <a href="index.php">&larr; Back to all sites</a>
+<main class="container my-4">
+  <a href="index.php" class="btn btn-outline-secondary mb-3">&larr; Back to all sites</a>
 
-  <!-- Site details -->
-  <section>
-    <h2>About the Site</h2>
-    <p><strong>Location:</strong> <?= htmlspecialchars($site['location']) ?></p>
-    <p><strong>Type:</strong> <?= htmlspecialchars($site['type']) ?></p>
-    <p><strong>Opening Hours:</strong> <?= htmlspecialchars($site['opening_hours']) ?></p>
-    <p><?= nl2br(htmlspecialchars($site['description'])) ?></p>
+  <!-- Site Details -->
+  <section class="mb-5">
+    <h2 class="text-primary">About the Site</h2>
+    <div class="card shadow-sm p-4">
+      <div class="row">
+        <div class="col-md-6">
+          <p><strong>📍 Location:</strong> <?= htmlspecialchars($site['location'] ?? '—', ENT_QUOTES | ENT_SUBSTITUTE) ?></p>
+          <p><strong>🏛 Type:</strong> <?= htmlspecialchars($site['type'] ?? '—', ENT_QUOTES | ENT_SUBSTITUTE) ?></p>
+          <p><strong>🕒 Opening Hours:</strong> <?= htmlspecialchars($site['opening_hours'] ?? '—', ENT_QUOTES | ENT_SUBSTITUTE) ?></p>
+        </div>
+        <div class="col-md-6">
+          <p><strong>✨ Highlights:</strong></p>
+          <ul>
+            <li>Rich historical background</li>
+            <li>Guided tours available</li>
+            <li>Family-friendly facilities</li>
+          </ul>
+        </div>
+      </div>
+      <p><?= nl2br(htmlspecialchars($site['description'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE)) ?></p>
+      <div id="map" style="height:300px;" class="mt-3 rounded"></div>
+    </div>
   </section>
 
- <!-- Book visit -->
-<section>
-  <h2>Book a Visit</h2>
-  <?php if (!isset($_SESSION['visitor_id'])): ?>
-    <p><a href="login.php?redirect=site_view.php?id=<?= $site_id ?>">Login</a> or 
-       <a href="register.php">Register</a> to book a visit.</p>
-  <?php else: ?>
-    <form action="booking_process.php" method="post">
-      <input type="hidden" name="site_id" value="<?= htmlspecialchars($site_id) ?>">
-      <label>No. of Tickets: 
-        <input name="no_of_tickets" type="number" value="1" min="1" required>
-      </label>
-      <label>Payment Method:
-        <select name="method">
-          <option value="online">Online</option>
-          <option value="card">Card</option>
-          <option value="cash">Cash</option>
-        </select>
-      </label>
-      <button type="submit">Book Visit</button>
-    </form>
-  <?php endif; ?>
-</section>
+  <!-- Booking -->
+  <section class="mb-5">
+    <h2 class="text-primary">Book a Visit</h2>
+    <div class="card shadow-sm p-4">
+      <form action="booking_process.php" method="post" class="row g-3">
+        <input type="hidden" name="site_id" value="<?= (int)$site_id ?>">
+        <?php if (!$loggedIn): ?>
+          <div class="col-md-6">
+            <label class="form-label">Full Name</label>
+            <input type="text" name="name" class="form-control" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Email</label>
+            <input type="email" name="email" class="form-control" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Phone</label>
+            <input type="text" name="phone" class="form-control">
+          </div>
+        <?php endif; ?>
+        <div class="col-md-3">
+          <label class="form-label">Tickets</label>
+          <input name="no_of_tickets" type="number" value="1" min="1" class="form-control" required>
+        </div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-primary">Proceed to Payment</button>
+        </div>
+      </form>
+    </div>
+  </section>
 
   <!-- Events -->
   <?php if ($events): ?>
-  <section>
-    <h2>Upcoming Events</h2>
+  <section class="mb-5">
+    <h2 class="text-primary">Upcoming Events at <?= htmlspecialchars($site['name'], ENT_QUOTES | ENT_SUBSTITUTE) ?></h2>
     <?php foreach ($events as $e): ?>
-      <div class="event-card">
-        <h3><?= htmlspecialchars($e['name']) ?></h3>
-        <p><strong>Date:</strong> <?= htmlspecialchars($e['event_date']) ?> <?= htmlspecialchars($e['event_time']) ?></p>
-        <p><strong>Ticket Price:</strong> <?= number_format($e['ticket_price'], 2) ?></p>
-        <form action="booking_process.php" method="post">
-          <input type="hidden" name="event_id" value="<?= htmlspecialchars($e['event_id']) ?>">
-          <label>No. of Tickets <input name="no_of_tickets" type="number" value="1" min="1"></label>
-          <label>Your Name: <input name="name" required></label>
-          <label>Email: <input name="email" type="email"></label>
-          <button type="submit">Book Event</button>
+      <div class="card shadow-sm p-3 mb-3">
+        <h4><?= htmlspecialchars($e['name'], ENT_QUOTES | ENT_SUBSTITUTE) ?></h4>
+        <p><strong>Date:</strong> <?= htmlspecialchars($e['event_date'], ENT_QUOTES | ENT_SUBSTITUTE) ?> <?= htmlspecialchars($e['event_time'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE) ?></p>
+        <p><strong>Ticket Price:</strong> <?= number_format((float)$e['ticket_price'], 2) ?></p>
+
+        <form action="booking_process.php" method="post" class="row g-3">
+          <input type="hidden" name="event_id" value="<?= (int)$e['event_id'] ?>">
+          <?php if (!$loggedIn): ?>
+            <div class="col-md-3">
+              <input type="text" name="name" placeholder="Your Name" class="form-control" required>
+            </div>
+            <div class="col-md-3">
+              <input type="email" name="email" placeholder="Email" class="form-control" required>
+            </div>
+            <div class="col-md-3">
+              <input type="text" name="phone" placeholder="Phone" class="form-control">
+            </div>
+          <?php endif; ?>
+          <div class="col-md-2">
+            <input name="no_of_tickets" type="number" value="1" min="1" class="form-control" required>
+          </div>
+          <div class="col-md-2">
+            <select name="method" class="form-select" required>
+              <option value="online">Online</option>
+              <option value="card">Card</option>
+              <option value="cash">Cash</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <button type="submit" class="btn btn-success">Book Event</button>
+          </div>
         </form>
       </div>
     <?php endforeach; ?>
@@ -141,42 +157,34 @@ $reviews = $revStmt->fetchAll();
 
   <!-- Reviews -->
   <section>
-    <h2>Visitor Reviews</h2>
-    <?php if (!$reviews): ?>
-      <p>No reviews yet. Be the first!</p>
-    <?php else: ?>
-      <?php foreach ($reviews as $r): ?>
-        <div class="review">
-          <strong><?= htmlspecialchars($r['visitor_name']) ?></strong> : ⭐ <?= htmlspecialchars($r['rating']) ?>/5
-          <div><?= nl2br(htmlspecialchars($r['comment'])) ?></div>
-          <small>Posted on <?= htmlspecialchars($r['review_date']) ?></small>
-        </div>
-      <?php endforeach; ?>
-    <?php endif; ?>
-
-    <?php if (isset($_SESSION['visitor_id'])): ?>
-  <h3>Leave a Review</h3>
-  <form action="review_process.php" method="post">
-    <input type="hidden" name="site_id" value="<?= htmlspecialchars($site_id) ?>">
-    <label>Rating:
-      <select name="rating">
-        <option>5</option><option>4</option><option>3</option><option>2</option><option>1</option>
-      </select>
-    </label>
-    <label>Comment:<textarea name="comment" rows="4"></textarea></label>
-    <button type="submit">Submit Review</button>
-  </form>
-<?php else: ?>
-  <p><a href="login.php?redirect=site_view.php?id=<?= $site_id ?>">Login</a> or <a href="register.php">Register</a> to leave a review.</p>
-<?php endif; ?>
-
+    <h2 class="text-primary">Visitor Reviews</h2>
+    <div class="card shadow-sm p-4 mb-3">
+      <?php if (!$reviews): ?>
+        <p>No reviews yet. Be the first!</p>
+      <?php else: ?>
+        <?php foreach ($reviews as $r): ?>
+          <div class="mb-3 border-bottom pb-2">
+            <strong><?= htmlspecialchars($r['visitor_name'], ENT_QUOTES | ENT_SUBSTITUTE) ?></strong> : ⭐ <?= htmlspecialchars($r['rating'], ENT_QUOTES | ENT_SUBSTITUTE) ?>/5
+            <p><?= nl2br(htmlspecialchars($r['comment'], ENT_QUOTES | ENT_SUBSTITUTE)) ?></p>
+            <small class="text-muted">Posted on <?= htmlspecialchars($r['review_date'], ENT_QUOTES | ENT_SUBSTITUTE) ?></small>
+          </div>
+        <?php endforeach; ?>
+      <?php endif; ?>
+    </div>
   </section>
 </main>
 
-<footer>
+<footer class="bg-dark text-white text-center py-3">
   <p>&copy; <?= date("Y") ?> Heritage Explorer | All rights reserved.</p>
 </footer>
 
-<script src="assets/js/main.js"></script>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+  var lat = <?= isset($site['latitude']) && is_numeric($site['latitude']) ? json_encode((float)$site['latitude']) : '23.8103' ?>;
+  var lng = <?= isset($site['longitude']) && is_numeric($site['longitude']) ? json_encode((float)$site['longitude']) : '90.4125' ?>;
+  var map = L.map('map').setView([lat, lng], 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+  L.marker([lat, lng]).addTo(map).bindPopup(<?= json_encode($site['name']) ?>).openPopup();
+</script>
 </body>
 </html>

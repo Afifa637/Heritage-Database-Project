@@ -1,5 +1,9 @@
 <?php
 require_once __DIR__ . '/includes/db_connect.php';
+session_start();
+
+// Check if visitor is logged in
+$visitor_logged_in = isset($_SESSION['visitor_id']);
 
 // ---------- Filters ----------
 $filter_name = trim($_GET['filter_name'] ?? '');
@@ -108,11 +112,20 @@ $sites = $stmt->fetchAll(PDO::FETCH_ASSOC);
 </head>
 <body>
 <header>
+<div class="d-flex justify-content-between align-items-center">
   <h1>🏛 Heritage Explorer</h1>
   <nav>
-    <a href="index.php" class="text-white">Home</a> | 
-    <a href="contact.php" class="text-white">Contact</a>
-  </nav>
+      <a href="index.php" class="text-white me-3">Home</a>
+      <a href="contact.php" class="text-white me-3">Contact</a>
+      <?php if ($visitor_logged_in): ?>
+        <a href="visitor/profile.php" class="text-white me-3">Profile</a>
+        <a href="visitor/logout.php" class="btn btn-sm btn-light">Logout</a>
+      <?php else: ?>
+        <a href="visitor/login.php" class="btn btn-sm btn-light me-2">Login</a>
+        <a href="visitor/signup.php" class="btn btn-sm btn-warning">Sign Up</a>
+      <?php endif; ?>
+    </nav>
+    </div>
 </header>
 
 <div class="container my-4">

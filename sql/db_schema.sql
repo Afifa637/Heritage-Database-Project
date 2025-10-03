@@ -36,21 +36,16 @@ CREATE TABLE IF NOT EXISTS Events (
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Users (general accounts)
-CREATE TABLE IF NOT EXISTS Users (
-  user_id INT AUTO_INCREMENT PRIMARY KEY,
-  email VARCHAR(150) NOT NULL UNIQUE,
-  password_hash VARCHAR(255) NOT NULL,
-  role ENUM('admin','staff','viewer') DEFAULT 'viewer'
-) ENGINE=InnoDB;
-
 -- Visitors
-CREATE TABLE IF NOT EXISTS Visitors (
+DROP TABLE IF EXISTS Visitors;
+CREATE TABLE Visitors (
   visitor_id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(120) NOT NULL,
   nationality VARCHAR(80),
-  email VARCHAR(120) UNIQUE,
-  phone VARCHAR(30)
+  email VARCHAR(120) UNIQUE NOT NULL,
+  phone VARCHAR(30),
+  password_hash VARCHAR(255) NOT NULL,  -- for login authentication
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Bookings
@@ -175,6 +170,11 @@ ALTER TABLE HeritageSites
 -- Optional fulltext index for description searches (MySQL 5.6+)
 ALTER TABLE HeritageSites
   ADD FULLTEXT INDEX ft_description (description);
+
+ALTER TABLE Bookings
+  ADD COLUMN payment_method ENUM('cash','card','mobile','bank_transfer','online') DEFAULT 'cash' AFTER no_of_tickets,
+  ADD COLUMN booked_ticket_price DECIMAL(10,2) NOT NULL DEFAULT 0 AFTER no_of_tickets;
+
 -- ===============================
 -- Sample Data
 -- ===============================
@@ -203,11 +203,17 @@ INSERT INTO Events (site_id, name, event_date, event_time, description, ticket_p
 (4,'Islamic Architecture Talk','2025-12-01','15:00:00','Lecture on mosque architecture at Bagerhat',100.00,100);
 
 -- Visitors
-INSERT INTO Visitors (name, nationality, email, phone) VALUES
-('Nadia Rahman','Bangladeshi','nadia@example.com','+8801700000000'),
-('Arun Sen','Indian','arun@example.com','+919800000000'),
-('Sophia Lee','American','sophia@example.com','+14155550000'),
-('Ahmed Khan','Pakistani','ahmed@example.com','+923001112222');
+INSERT INTO Visitors (visitor_id, name, nationality, email, phone, password_hash) VALUES
+(1, 'Ayesha Rahman', 'Bangladeshi', 'ayesha.rahman@example.com', '+8801711111111', '$2y$10$demoHash12345678901234'),
+(2, 'Arun Sen', 'Indian', 'arun.sen@example.com', '+919800000000', '$2y$10$demoHash12345678901234'),
+(3, 'Sophia Lee', 'American', 'sophia.lee@example.com', '+14155550000', '$2y$10$demoHash12345678901234'),
+(4, 'Ahmed Khan', 'Pakistani', 'ahmed.khan@example.com', '+923001112222', '$2y$10$demoHash12345678901234'),
+(5, 'Fatima Noor', 'Pakistani', 'fatima.noor@example.com', '+923001234567', '$2y$10$demoHash12345678901234'),
+(6, 'Mehedi Hasan', 'Bangladeshi', 'mehedi.hasan@example.com', '+8801711222333', '$2y$10$demoHash12345678901234'),
+(7, 'Sadia Karim', 'Bangladeshi', 'sadia.karim@example.com', '+8801911445566', '$2y$10$demoHash12345678901234'),
+(8, 'Nita Rahman', 'Bangladeshi', 'nita.rahman@example.com', '+8801711112222', '$2y$10$demoHash12345678901234'),
+(9, 'Puja Sen', 'Indian', 'puja.sen@example.com', '+919812345679', '$2y$10$demoHash12345678901234'),
+(10, 'David Smith', 'British', 'david.smith@example.com', '+447911123456', '$2y$10$demoHash12345678901234');
 
 -- Bookings
 INSERT INTO Bookings (visitor_id, site_id, event_id, no_of_tickets, payment_status) VALUES
