@@ -94,15 +94,18 @@ $reviews = $revStmt->fetchAll();
     <p><?= nl2br(htmlspecialchars($site['description'])) ?></p>
   </section>
 
-  <!-- Book visit -->
-  <section>
-    <h2>Book a Visit</h2>
+ <!-- Book visit -->
+<section>
+  <h2>Book a Visit</h2>
+  <?php if (!isset($_SESSION['visitor_id'])): ?>
+    <p><a href="login.php?redirect=site_view.php?id=<?= $site_id ?>">Login</a> or 
+       <a href="register.php">Register</a> to book a visit.</p>
+  <?php else: ?>
     <form action="booking_process.php" method="post">
       <input type="hidden" name="site_id" value="<?= htmlspecialchars($site_id) ?>">
-      <label>Your Name: <input name="name" required></label>
-      <label>Email: <input name="email" type="email"></label>
-      <label>Phone: <input name="phone"></label>
-      <label>No. of Tickets: <input name="no_of_tickets" type="number" value="1" min="1" required></label>
+      <label>No. of Tickets: 
+        <input name="no_of_tickets" type="number" value="1" min="1" required>
+      </label>
       <label>Payment Method:
         <select name="method">
           <option value="online">Online</option>
@@ -112,7 +115,8 @@ $reviews = $revStmt->fetchAll();
       </label>
       <button type="submit">Book Visit</button>
     </form>
-  </section>
+  <?php endif; ?>
+</section>
 
   <!-- Events -->
   <?php if ($events): ?>
@@ -143,26 +147,29 @@ $reviews = $revStmt->fetchAll();
     <?php else: ?>
       <?php foreach ($reviews as $r): ?>
         <div class="review">
-          <strong><?= htmlspecialchars($r['visitor_name']) ?></strong> — ⭐ <?= htmlspecialchars($r['rating']) ?>/5
+          <strong><?= htmlspecialchars($r['visitor_name']) ?></strong> : ⭐ <?= htmlspecialchars($r['rating']) ?>/5
           <div><?= nl2br(htmlspecialchars($r['comment'])) ?></div>
           <small>Posted on <?= htmlspecialchars($r['review_date']) ?></small>
         </div>
       <?php endforeach; ?>
     <?php endif; ?>
 
-    <h3>Leave a Review</h3>
-    <form action="review_process.php" method="post">
-      <input type="hidden" name="site_id" value="<?= htmlspecialchars($site_id) ?>">
-      <label>Your Name: <input name="name" required></label>
-      <label>Email: <input name="email" type="email"></label>
-      <label>Rating:
-        <select name="rating">
-          <option>5</option><option>4</option><option>3</option><option>2</option><option>1</option>
-        </select>
-      </label>
-      <label>Comment:<textarea name="comment" rows="4"></textarea></label>
-      <button type="submit">Submit Review</button>
-    </form>
+    <?php if (isset($_SESSION['visitor_id'])): ?>
+  <h3>Leave a Review</h3>
+  <form action="review_process.php" method="post">
+    <input type="hidden" name="site_id" value="<?= htmlspecialchars($site_id) ?>">
+    <label>Rating:
+      <select name="rating">
+        <option>5</option><option>4</option><option>3</option><option>2</option><option>1</option>
+      </select>
+    </label>
+    <label>Comment:<textarea name="comment" rows="4"></textarea></label>
+    <button type="submit">Submit Review</button>
+  </form>
+<?php else: ?>
+  <p><a href="login.php?redirect=site_view.php?id=<?= $site_id ?>">Login</a> or <a href="register.php">Register</a> to leave a review.</p>
+<?php endif; ?>
+
   </section>
 </main>
 
