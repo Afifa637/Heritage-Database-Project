@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once 'headerFooter.php';
 require_once __DIR__ . '/../includes/db_connect.php';
 
 if (empty($_SESSION['admin_logged_in'])) {
@@ -26,8 +27,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id'])) {
     exit;
 }
 
-// Fetch all events
-$events = $pdo->query('SELECT * FROM Events ORDER BY start_date DESC')->fetchAll(PDO::FETCH_ASSOC);
+// ✅ Corrected query — use event_date instead of start_date
+$events = $pdo->query('SELECT * FROM Events ORDER BY event_date DESC')->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!doctype html>
 <html>
@@ -43,22 +44,26 @@ $events = $pdo->query('SELECT * FROM Events ORDER BY start_date DESC')->fetchAll
     <table class="table table-bordered">
         <thead>
             <tr>
-                <th>Title</th>
-                <th>Site</th>
-                <th>Start Date</th>
-                <th>End Date</th>
+                <th>Event Name</th>
+                <th>Site ID</th>
+                <th>Date</th>
+                <th>Time</th>
                 <th>Description</th>
+                <th>Ticket Price</th>
+                <th>Capacity</th>
                 <th>Actions</th>
             </tr>
         </thead>
         <tbody>
             <?php foreach ($events as $e): ?>
             <tr>
-                <td><?= htmlspecialchars($e['title']) ?></td>
+                <td><?= htmlspecialchars($e['name']) ?></td>
                 <td><?= htmlspecialchars($e['site_id']) ?></td>
-                <td><?= htmlspecialchars($e['start_date']) ?></td>
-                <td><?= htmlspecialchars($e['end_date']) ?></td>
+                <td><?= htmlspecialchars($e['event_date']) ?></td>
+                <td><?= htmlspecialchars($e['event_time']) ?></td>
                 <td><?= htmlspecialchars($e['description']) ?></td>
+                <td><?= number_format($e['ticket_price'], 2) ?></td>
+                <td><?= htmlspecialchars($e['capacity']) ?></td>
                 <td>
                     <a href="event_edit.php?id=<?= $e['event_id'] ?>" class="btn btn-sm btn-secondary">Edit</a>
                     <form method="post" class="d-inline" onsubmit="return confirm('Delete event?');">

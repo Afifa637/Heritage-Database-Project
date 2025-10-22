@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once 'headerFooter.php';
 require_once __DIR__ . '/../includes/db_connect.php';
 if (empty($_SESSION['admin_logged_in'])) { header("Location: login.php"); exit; }
 
@@ -58,5 +59,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <button class="btn btn-success">Save</button>
   <a class="btn btn-secondary" href="manage_sites.php">Cancel</a>
 </form>
+</div>
 </body>
 </html>

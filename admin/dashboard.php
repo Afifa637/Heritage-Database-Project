@@ -1,6 +1,7 @@
 <?php
 // admin/dashboard.php
 session_start();
+require_once 'headerFooter.php';
 require_once __DIR__ . '/../includes/db_connect.php';
 if (empty($_SESSION['admin_logged_in'])) {
     header('Location: login.php');
@@ -39,7 +40,7 @@ $stmt = $pdo->query("SELECT status, COUNT(*) as cnt
     FROM Payments GROUP BY status");
 $payment_status = $stmt->fetchAll();
 
-$stmt = $pdo->query("SELECT g.name, COUNT(a.assignment_id) as cnt 
+$stmt = $pdo->query("SELECT g.full_name, COUNT(a.assign_id) as cnt 
     FROM Guides g 
     LEFT JOIN Assignments a ON g.guide_id=a.guide_id 
     GROUP BY g.guide_id ORDER BY cnt DESC LIMIT 8");
@@ -218,5 +219,6 @@ $site_ratings = $stmt->fetchAll();
       }
     });
   </script>
+  </div>
 </body>
 </html>

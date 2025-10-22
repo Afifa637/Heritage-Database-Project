@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once 'headerFooter.php';
 require_once __DIR__ . '/../includes/db_connect.php'; // ensure this returns a $pdo PDO instance
 
 // ---------- AUTH ----------
@@ -315,6 +316,7 @@ body { background-color: #f8f9fa; }
             </nav>
         <?php endif; ?>
     <?php endif; ?>
+</div>
 </div>
 </body>
 </html>

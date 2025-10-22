@@ -15,7 +15,7 @@ $tickets  = isset($_POST['no_of_tickets']) ? (int)$_POST['no_of_tickets'] : 1;
 $tickets  = max(1, $tickets);
 
 // Allowed payment methods
-$allowed_methods = ['bkash','nagad','rocket','card'];
+$allowed_methods = ['bkash','nagad','rocket','card', 'bank_transfer'];
 $method = isset($_POST['method']) ? strtolower(trim($_POST['method'])) : 'bkash';
 if (!in_array($method, $allowed_methods, true)) {
     $method = 'bkash'; // fallback

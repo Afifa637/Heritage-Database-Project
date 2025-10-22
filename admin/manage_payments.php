@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once 'headerFooter.php';
 require_once __DIR__ . '/../includes/db_connect.php';
 if (empty($_SESSION['admin_logged_in'])) { header("Location: login.php"); exit; }
 
@@ -29,5 +30,6 @@ $payments = $pdo->query("SELECT p.*,b.visitor_id,s.name AS site_name
 </tr>
 <?php endforeach; ?>
 </table>
+</div>
 </body>
 </html>

@@ -172,9 +172,13 @@ ALTER TABLE HeritageSites
   ADD FULLTEXT INDEX ft_description (description);
 
 ALTER TABLE Bookings
-  ADD COLUMN payment_method ENUM('cash','card','mobile','bank_transfer','online') DEFAULT 'cash' AFTER no_of_tickets,
-  ADD COLUMN booked_ticket_price DECIMAL(10,2) NOT NULL DEFAULT 0 AFTER no_of_tickets;
+  DROP COLUMN IF EXISTS payment_method;
 
+ALTER TABLE Bookings
+  ADD COLUMN IF NOT EXISTS booked_ticket_price DECIMAL(10,2) NOT NULL DEFAULT 0 AFTER no_of_tickets;
+
+ALTER TABLE Payments
+  MODIFY COLUMN method ENUM('bkash','nagad','rocket','card', 'bank_transfer') NOT NULL;
 -- ===============================
 -- Sample Data
 -- ===============================

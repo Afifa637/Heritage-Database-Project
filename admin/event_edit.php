@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once 'headerFooter.php';
 require_once __DIR__ . '/../includes/db_connect.php';
 
 if (empty($_SESSION['admin_logged_in'])) {
@@ -109,6 +110,7 @@ $sites = $pdo->query('SELECT site_id, name FROM HeritageSites ORDER BY name')->f
 <a href="manage_events.php" class="btn btn-secondary">Cancel</a>
 </div>
 </form>
+</div>
 </div>
 </body>
 </html>

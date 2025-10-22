@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once 'headerFooter.php';
 require_once __DIR__ . '/../includes/db_connect.php';
 
 if (empty($_SESSION['admin_logged_in'])) {
@@ -30,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['delete_id'])) {
 }
 
 // Fetch assignments
-$assignments = $pdo->query('SELECT a.assignment_id, g.full_name, s.name AS site_name 
+$assignments = $pdo->query('SELECT a.assign_id, g.full_name, s.name AS site_name 
                             FROM Assignments a 
                             JOIN Guides g ON a.guide_id=g.guide_id 
                             JOIN HeritageSites s ON a.site_id=s.site_id
@@ -88,7 +89,7 @@ $sites = $pdo->query('SELECT * FROM HeritageSites ORDER BY name')->fetchAll(PDO:
 <td><?= htmlspecialchars($a['site_name']) ?></td>
 <td>
 <form method="post" class="d-inline" onsubmit="return confirm('Remove assignment?');">
-<input type="hidden" name="delete_id" value="<?= $a['assignment_id'] ?>">
+<input type="hidden" name="delete_id" value="<?= $a['assign_id'] ?>">
 <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
 <button type="submit" class="btn btn-sm btn-danger">Remove</button>
 </form>
@@ -97,6 +98,7 @@ $sites = $pdo->query('SELECT * FROM HeritageSites ORDER BY name')->fetchAll(PDO:
 <?php endforeach; ?>
 </tbody>
 </table>
+</div>
 </div>
 </body>
 </html>
