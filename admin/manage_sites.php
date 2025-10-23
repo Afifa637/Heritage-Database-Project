@@ -155,13 +155,6 @@ body { background-color: #f8f9fa; }
 </style>
 </head>
 <body>
-<nav class="navbar navbar-dark bg-dark mb-4">
-    <div class="container d-flex justify-content-between">
-        <a class="navbar-brand" href="dashboard.php">Admin Panel</a>
-        <a class="btn btn-outline-light btn-sm" href="logout.php">Logout</a>
-    </div>
-</nav>
-
 <div class="container">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h4>Heritage Sites</h4>

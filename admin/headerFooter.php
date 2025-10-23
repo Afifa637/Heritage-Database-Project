@@ -8,7 +8,6 @@ if (empty($_SESSION['admin_logged_in'])) {
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>@yield('title', 'Admin Panel')</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     body { background-color: #f8f9fa; }
@@ -38,7 +37,6 @@ if (empty($_SESSION['admin_logged_in'])) {
   <a href="manage_assignments.php" class="<?= basename($_SERVER['PHP_SELF'])=='manage_assignments.php'?'active':'' ?>">📋 Assignments</a>
   <a href="manage_visitors.php" class="<?= basename($_SERVER['PHP_SELF'])=='manage_visitors.php'?'active':'' ?>">👥 Visitors</a>
   <a href="manage_payments.php" class="<?= basename($_SERVER['PHP_SELF'])=='manage_payments.php'?'active':'' ?>">💳 Payments</a>
-  <a href="export_csv.php" class="<?= basename($_SERVER['PHP_SELF'])=='export_csv.php'?'active':'' ?>">📤 Export Data</a>
   <hr>
   <a href="logout.php" class="text-danger">🚪 Logout</a>
 </div>

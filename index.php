@@ -230,6 +230,54 @@ $sites = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <?php endfor; ?>
   </ul>
 </nav>
+<!-- Showcase Analytics Section -->
+<div class="container my-5">
+  <h3>📊 Quick Stats & Query Showcases</h3>
+  <div class="row">
+    <div class="col-md-4">
+      <div class="site-card">
+        <h5>💰 Revenue by Payment Method</h5>
+        <ul>
+          <?php foreach ($totalRevenue as $r): ?>
+            <li><?= htmlspecialchars($r['method']) ?> — <?= number_format($r['total'],2) ?></li>
+          <?php endforeach; ?>
+        </ul>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="site-card">
+        <h5>👨‍🏫 Average Guide Salary</h5>
+        <p><?= number_format($avgGuideSalary,2) ?> BDT</p>
+        <h5>Unassigned Guides</h5>
+        <ul>
+          <?php foreach ($unassignedGuides as $g): ?>
+            <li><?= htmlspecialchars($g) ?></li>
+          <?php endforeach; ?>
+        </ul>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="site-card">
+        <h5>🏆 Top 3 Booked Sites</h5>
+        <ul>
+          <?php foreach ($topSites as $s): ?>
+            <li><?= htmlspecialchars($s['name']) ?> — <?= $s['total_bookings'] ?> bookings</li>
+          <?php endforeach; ?>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="site-card mt-4">
+    <h5>⭐ Recent Reviews (JOIN Example)</h5>
+    <?php foreach ($reviewsData as $r): ?>
+      <p><strong><?= htmlspecialchars($r['visitor']) ?></strong> rated 
+      <em><?= htmlspecialchars($r['site']) ?></em> → <?= htmlspecialchars($r['rating']) ?>/5<br>
+      "<?= htmlspecialchars($r['comment']) ?>"</p>
+      <hr>
+    <?php endforeach; ?>
+  </div>
+</div>
 
 <footer>
   <p>&copy; <?= date('Y') ?> Heritage Explorer</p>

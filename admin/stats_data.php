@@ -30,10 +30,10 @@ switch ($type) {
         break;
 
     case 'guide_workload':
-        $stmt = $pdo->query("SELECT g.name, COUNT(a.assignment_id) AS assignments 
+        $stmt = $pdo->query("SELECT g.full_name, COUNT(a.assignment_id) AS assignments 
                              FROM Guides g 
                              LEFT JOIN Assignments a ON g.guide_id=a.guide_id 
-                             GROUP BY g.guide_id, g.name");
+                             GROUP BY g.guide_id, g.full_name");
         echo json_encode($stmt->fetchAll());
         break;
 

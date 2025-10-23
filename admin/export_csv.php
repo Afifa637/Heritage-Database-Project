@@ -37,11 +37,11 @@ $queries = [
         'filename' => 'payments.csv'
     ],
     'guides' => [
-        'sql' => 'SELECT g.guide_id, g.name, g.phone, g.language, g.experience_years, 
+        'sql' => 'SELECT g.guide_id, g.full_name, g.phone, g.language, g.experience_years, 
                          COUNT(a.assignment_id) AS total_assignments 
                   FROM Guides g 
                   LEFT JOIN Assignments a ON g.guide_id = a.guide_id 
-                  GROUP BY g.guide_id, g.name, g.phone, g.language, g.experience_years',
+                  GROUP BY g.guide_id, g.full_name, g.phone, g.language, g.experience_years',
         'headers' => ['guide_id', 'name', 'phone', 'language', 'experience_years', 'total_assignments'],
         'filename' => 'guides.csv'
     ]
