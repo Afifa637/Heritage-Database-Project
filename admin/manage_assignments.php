@@ -69,7 +69,8 @@ $assignments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 .panel { background: #f8f9fa; padding: 1rem; border-radius: 10px; margin-bottom: 1rem; }
 </style>
 </head>
-<body class="container py-4">
+<body>
+  <div class="container py-4">
 <h2 class="mb-4">📝 Manage Assignments</h2>
 
 <!-- Add Assignment -->
@@ -196,6 +197,7 @@ $assignments = $stmt->fetchAll(PDO::FETCH_ASSOC);
         <button class="btn btn-primary">Update</button>
     </div>
 </form>
+</div>
 </div>
 </div>
 

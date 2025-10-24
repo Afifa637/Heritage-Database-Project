@@ -104,8 +104,8 @@ $methodCounts = $pdo->query("SELECT method, COUNT(*) AS cnt FROM Payments GROUP 
 .stat-box { background:#f8f9fa; border-radius:10px; padding:1rem; text-align:center; margin-bottom:1rem; box-shadow:0 1px 3px rgba(0,0,0,0.1);}
 </style>
 </head>
-<body class="container py-4">
-
+<body>
+  <div class="container py-4">
 <h2 class="mb-4">💰 Manage Payments</h2>
 
 <!-- Filters -->
@@ -228,7 +228,7 @@ $methodCounts = $pdo->query("SELECT method, COUNT(*) AS cnt FROM Payments GROUP 
 </form>
 </div>
 </div>
-
+</div>
 <script>
 var editModal = document.getElementById('editModal');
 editModal.addEventListener('show.bs.modal', function(event){

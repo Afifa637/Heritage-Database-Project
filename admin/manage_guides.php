@@ -137,8 +137,8 @@ $langCounts = $pdo->query("SELECT language, COUNT(*) AS cnt FROM Guides GROUP BY
   </style>
 </head>
 
-<body class="container py-4">
-
+<body>
+  <div class="container py-4">
   <h2 class="mb-4">👨‍🏫 Manage Guides</h2>
 
   <!-- ✅ Add New Guide -->
@@ -321,7 +321,7 @@ $langCounts = $pdo->query("SELECT language, COUNT(*) AS cnt FROM Guides GROUP BY
       document.getElementById('edit_salary').value = button.getAttribute('data-salary');
     });
   </script>
-
+</div>
 </body>
 
 </html>

@@ -3,14 +3,14 @@ require_once __DIR__ . '/../includes/db_connect.php';
 session_start();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $name = trim($_POST['name']);
+    $full_name = trim($_POST['full_name']);
     $email = strtolower(trim($_POST['email']));
     $phone = trim($_POST['phone']);
     $nationality = trim($_POST['nationality']);
     $password = $_POST['password'];
     $confirm_password = $_POST['confirm_password'];
 
-    if (empty($name) || empty($email) || empty($password)) {
+    if (empty($full_name) || empty($email) || empty($password)) {
         $error = "Please fill in all required fields.";
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = "Invalid email format.";
@@ -18,10 +18,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = "Passwords do not match.";
     } else {
         $hash = password_hash($password, PASSWORD_BCRYPT);
-        $stmt = $pdo->prepare("INSERT INTO Visitors (name, email, phone, nationality, password_hash) VALUES (?,?,?,?,?)");
+        $stmt = $pdo->prepare("INSERT INTO Visitors (full_name, email, phone, nationality, password_hash) VALUES (?,?,?,?,?)");
         try {
-            $stmt->execute([$name, $email, $phone, $nationality, $hash]);
+            $stmt->execute([$full_name, $email, $phone, $nationality, $hash]);
             $_SESSION['visitor_id'] = $pdo->lastInsertId();
+            $_SESSION['visitor_name'] = $full_name;
             header("Location: profile.php");
             exit;
         } catch (PDOException $e) {
@@ -49,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <form method="POST">
       <div class="mb-3">
         <label class="form-label">Full Name</label>
-        <input type="text" name="name" class="form-control" required>
+        <input type="text" name="full_name" class="form-control" required>
       </div>
       <div class="mb-3">
         <label class="form-label">Email</label>

@@ -57,24 +57,14 @@ $order_by = 'name ASC';
 if ($sort_price === 'asc') $order_by = 'ticket_price ASC';
 if ($sort_price === 'desc') $order_by = 'ticket_price DESC';
 
-// ---------- Fetch ----------
-$stmt = $pdo->prepare("SELECT site_id, name, location, type, ticket_price, unesco_status FROM HeritageSites $where ORDER BY $order_by");
-foreach ($params as $k => $v) {
-    $stmt->bindValue(':'.$k, $v);
-}
-$stmt->execute();
-$sites = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
 // ---------- Pagination ----------
-$per_page = 6; // sites per page
+$per_page = 6;
 $page = max(1, (int)($_GET['page'] ?? 1));
 $offset = ($page - 1) * $per_page;
 
 // ---------- Count total ----------
 $countStmt = $pdo->prepare("SELECT COUNT(*) FROM HeritageSites $where");
-foreach ($params as $k => $v) {
-    $countStmt->bindValue(':'.$k, $v);
-}
+foreach ($params as $k => $v) $countStmt->bindValue(':'.$k, $v);
 $countStmt->execute();
 $total_sites = (int)$countStmt->fetchColumn();
 $total_pages = ceil($total_sites / $per_page);
@@ -87,13 +77,115 @@ $stmt = $pdo->prepare("
     ORDER BY $order_by 
     LIMIT :limit OFFSET :offset
 ");
-foreach ($params as $k => $v) {
-    $stmt->bindValue(':'.$k, $v);
-}
+foreach ($params as $k => $v) $stmt->bindValue(':'.$k, $v);
 $stmt->bindValue(':limit', $per_page, PDO::PARAM_INT);
 $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 $stmt->execute();
 $sites = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+/* ===========================================================
+   🔹 LAB 4 – Aggregates, Grouping, HAVING
+   =========================================================== */
+   $method_filter = $_GET['method_filter'] ?? '';
+   $methodWhere = $method_filter ? "WHERE method = :m" : "";
+   $revenueStmt = $pdo->prepare("
+       SELECT method, SUM(amount) AS total 
+       FROM Payments 
+       $methodWhere
+       GROUP BY method 
+       HAVING total > 0
+       ORDER BY total DESC
+   ");
+   if ($method_filter) $revenueStmt->bindValue(':m', $method_filter);
+   $revenueStmt->execute();
+   $totalRevenue = $revenueStmt->fetchAll(PDO::FETCH_ASSOC);
+//    $totalRevenue = $pdo->query("
+//     SELECT method, SUM(amount) AS total 
+//     FROM Payments 
+//     GROUP BY method 
+//     ORDER BY total DESC
+// ")->fetchAll(PDO::FETCH_ASSOC);
+
+$avgGuideSalary = $pdo->query("SELECT ROUND(AVG(salary),2) AS avg_salary FROM Guides")->fetchColumn();
+$salary_min = $_GET['salary_min'] ?? '';
+$salaryQuery = "SELECT full_name, salary FROM Guides";
+if ($salary_min !== '') {
+  $salaryQuery .= " WHERE salary >= :smin";
+  $stmtSal = $pdo->prepare($salaryQuery);
+  $stmtSal->bindValue(':smin',(float)$salary_min);
+  $stmtSal->execute();
+  $guideSalaryList = $stmtSal->fetchAll(PDO::FETCH_ASSOC);
+} else {
+  $guideSalaryList = $pdo->query($salaryQuery)->fetchAll(PDO::FETCH_ASSOC);
+}
+$unassignedGuides = $pdo->query("
+    SELECT full_name FROM Guides 
+    LEFT JOIN Assignments ON Guides.guide_id = Assignments.guide_id 
+    WHERE Assignments.guide_id IS NULL
+")->fetchAll(PDO::FETCH_COLUMN);
+
+$topSites = $pdo->query("
+    SELECT h.name, COUNT(b.booking_id) AS total_bookings 
+    FROM HeritageSites h
+    JOIN Bookings b ON h.site_id = b.site_id
+    GROUP BY h.name
+    ORDER BY total_bookings DESC
+    LIMIT 3
+")->fetchAll(PDO::FETCH_ASSOC);
+
+$reviewsData = $pdo->query("
+    SELECT v.full_name AS visitor, s.name AS site, r.rating, r.comment
+    FROM Reviews r
+    JOIN Visitors v ON r.visitor_id = v.visitor_id
+    JOIN HeritageSites s ON r.site_id = s.site_id
+    ORDER BY r.review_id DESC
+    LIMIT 5
+")->fetchAll(PDO::FETCH_ASSOC);
+
+/* ===========================================================
+   🔹 LAB 5 – Subqueries & Set Operations
+   =========================================================== */
+$sitesWithEvents = $pdo->query("
+    SELECT name FROM HeritageSites
+    WHERE site_id IN (SELECT site_id FROM Events)
+")->fetchAll(PDO::FETCH_COLUMN);
+
+$guidesWithoutSite = $pdo->query("
+    SELECT full_name FROM Guides
+    WHERE guide_id NOT IN (SELECT guide_id FROM Assignments)
+")->fetchAll(PDO::FETCH_COLUMN);
+
+$visitorsBookedNotReviewed = $pdo->query("
+    SELECT full_name FROM Visitors
+    WHERE visitor_id IN (SELECT visitor_id FROM Bookings)
+    AND visitor_id NOT IN (SELECT visitor_id FROM Reviews)
+")->fetchAll(PDO::FETCH_COLUMN);
+
+$sitesWithBookingsOrReviews = $pdo->query("
+    (SELECT site_id, name FROM HeritageSites WHERE site_id IN (SELECT site_id FROM Bookings))
+    UNION
+    (SELECT site_id, name FROM HeritageSites WHERE site_id IN (SELECT site_id FROM Reviews))
+")->fetchAll(PDO::FETCH_ASSOC);
+
+/* ===========================================================
+   🔹 LAB 6 – Joins (INNER, LEFT, CROSS)
+   =========================================================== */
+$bookingsWithPayments = $pdo->query("
+    SELECT b.booking_id, v.full_name, p.method, p.amount, p.status
+    FROM Bookings b
+    JOIN Visitors v ON b.visitor_id = v.visitor_id
+    JOIN Payments p ON b.booking_id = p.booking_id
+    LIMIT 5
+")->fetchAll(PDO::FETCH_ASSOC);
+
+$guideAssignments = $pdo->query("
+    SELECT g.full_name AS guide, s.name AS site, a.shift_time
+    FROM Guides g
+    JOIN Assignments a ON g.guide_id = a.guide_id
+    JOIN HeritageSites s ON a.site_id = s.site_id
+    LIMIT 5
+")->fetchAll(PDO::FETCH_ASSOC);
+
 ?>
 <!doctype html>
 <html lang="en">
@@ -105,9 +197,8 @@ $sites = $stmt->fetchAll(PDO::FETCH_ASSOC);
     body { background:#f4f6f9; }
     header, footer { background:#003366; color:white; padding:15px; text-align:center; }
     .site-card { background:white; padding:20px; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,.1); margin-bottom:20px; }
-    .site-card h3 { color:#003366; }
-    a { color:#003366; text-decoration:none; }
     .filter-card { background:white; padding:15px; border-radius:10px; margin-bottom:20px; box-shadow:0 2px 6px rgba(0,0,0,.1); }
+    h5 { color:#003366; }
   </style>
 </head>
 <body>
@@ -125,7 +216,7 @@ $sites = $stmt->fetchAll(PDO::FETCH_ASSOC);
         <a href="visitor/signup.php" class="btn btn-sm btn-warning">Sign Up</a>
       <?php endif; ?>
     </nav>
-    </div>
+</div>
 </header>
 
 <div class="container my-4">
@@ -164,22 +255,10 @@ $sites = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </select>
       </div>
       <div class="col-md-1">
-        <input type="number" 
-               name="filter_price_min" 
-               class="form-control" 
-               placeholder="Min" 
-               min="<?= $db_min_price ?>" 
-               max="<?= $db_max_price ?>" 
-               value="<?= htmlspecialchars($filter_price_min ?? '') ?>">
+        <input type="number" name="filter_price_min" class="form-control" placeholder="Min" value="<?= htmlspecialchars($filter_price_min ?? '') ?>">
       </div>
       <div class="col-md-1">
-        <input type="number" 
-               name="filter_price_max" 
-               class="form-control" 
-               placeholder="Max" 
-               min="<?= $db_min_price ?>" 
-               max="<?= $db_max_price ?>" 
-               value="<?= htmlspecialchars($filter_price_max ?? '') ?>">
+        <input type="number" name="filter_price_max" class="form-control" placeholder="Max" value="<?= htmlspecialchars($filter_price_max ?? '') ?>">
       </div>
       <div class="col-md-1">
         <select name="sort_price" class="form-select">
@@ -205,12 +284,11 @@ $sites = $stmt->fetchAll(PDO::FETCH_ASSOC);
       <?php foreach ($sites as $s): ?>
         <div class="col-md-6">
           <div class="site-card">
-            <h3><a href="site_view.php?id=<?= $s['site_id'] ?>"><?= htmlspecialchars($s['name']) ?></a></h3>
+            <h4><a href="site_view.php?id=<?= $s['site_id'] ?>"><?= htmlspecialchars($s['name']) ?></a></h4>
             <p><strong>Location:</strong> <?= htmlspecialchars($s['location']) ?></p>
             <p><strong>Type:</strong> <?= htmlspecialchars($s['type']) ?></p>
-            <p><strong>Ticket Price:</strong> <?= number_format($s['ticket_price'],2) ?></p>
+            <p><strong>Ticket:</strong> <?= number_format($s['ticket_price'],2) ?></p>
             <p><strong>UNESCO:</strong> <?= htmlspecialchars($s['unesco_status']) ?></p>
-            <a href="site_view.php?id=<?= $s['site_id'] ?>" class="btn btn-outline-primary btn-sm">View Details →</a>
           </div>
         </div>
       <?php endforeach; ?>
@@ -223,47 +301,23 @@ $sites = $stmt->fetchAll(PDO::FETCH_ASSOC);
   <ul class="pagination justify-content-center">
     <?php for ($i=1; $i <= $total_pages; $i++): ?>
       <li class="page-item <?= $i === $page ? 'active' : '' ?>">
-        <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page'=>$i])) ?>">
-          <?= $i ?>
-        </a>
+        <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page'=>$i])) ?>"><?= $i ?></a>
       </li>
     <?php endfor; ?>
   </ul>
 </nav>
-<!-- Showcase Analytics Section -->
+
+<!-- Analytics Section -->
 <div class="container my-5">
-  <h3>📊 Quick Stats & Query Showcases</h3>
+  <h3>📊 Lab Query Showcases</h3>
+
   <div class="row">
     <div class="col-md-4">
-      <div class="site-card">
-        <h5>💰 Revenue by Payment Method</h5>
-        <ul>
-          <?php foreach ($totalRevenue as $r): ?>
-            <li><?= htmlspecialchars($r['method']) ?> — <?= number_format($r['total'],2) ?></li>
-          <?php endforeach; ?>
-        </ul>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="site-card">
-        <h5>👨‍🏫 Average Guide Salary</h5>
-        <p><?= number_format($avgGuideSalary,2) ?> BDT</p>
-        <h5>Unassigned Guides</h5>
-        <ul>
-          <?php foreach ($unassignedGuides as $g): ?>
-            <li><?= htmlspecialchars($g) ?></li>
-          <?php endforeach; ?>
-        </ul>
-      </div>
     </div>
     <div class="col-md-4">
       <div class="site-card">
         <h5>🏆 Top 3 Booked Sites</h5>
-        <ul>
-          <?php foreach ($topSites as $s): ?>
-            <li><?= htmlspecialchars($s['name']) ?> — <?= $s['total_bookings'] ?> bookings</li>
-          <?php endforeach; ?>
-        </ul>
+        <ul><?php foreach ($topSites as $s): ?><li><?= htmlspecialchars($s['name']) ?> — <?= $s['total_bookings'] ?> bookings</li><?php endforeach; ?></ul>
       </div>
     </div>
   </div>
@@ -271,16 +325,28 @@ $sites = $stmt->fetchAll(PDO::FETCH_ASSOC);
   <div class="site-card mt-4">
     <h5>⭐ Recent Reviews (JOIN Example)</h5>
     <?php foreach ($reviewsData as $r): ?>
-      <p><strong><?= htmlspecialchars($r['visitor']) ?></strong> rated 
-      <em><?= htmlspecialchars($r['site']) ?></em> → <?= htmlspecialchars($r['rating']) ?>/5<br>
-      "<?= htmlspecialchars($r['comment']) ?>"</p>
-      <hr>
+      <p><strong><?= htmlspecialchars($r['visitor']) ?></strong> rated <em><?= htmlspecialchars($r['site']) ?></em> → <?= htmlspecialchars($r['rating']) ?>/5<br>
+      "<?= htmlspecialchars($r['comment']) ?>"</p><hr>
     <?php endforeach; ?>
+  </div>
+
+  <div class="site-card mt-4">
+    <h5>🧩 Subqueries & Joins</h5>
+    <p><strong>Sites With Events:</strong> <?= implode(', ', $sitesWithEvents) ?: 'None' ?></p>
+    <p><strong>Guides Without Site:</strong> <?= implode(', ', $guidesWithoutSite) ?: 'None' ?></p>
+    <p><strong>Visitors Booked But Not Reviewed:</strong> <?= implode(', ', $visitorsBookedNotReviewed) ?: 'None' ?></p>
+    <h6>Bookings + Payments (Join Example)</h6>
+    <ul><?php foreach ($bookingsWithPayments as $b): ?><li>#<?= $b['booking_id'] ?> - <?= $b['full_name'] ?> paid <?= number_format($b['amount'],2) ?> via <?= $b['method'] ?> (<?= $b['status'] ?>)</li><?php endforeach; ?></ul>
   </div>
 </div>
 
-<footer>
-  <p>&copy; <?= date('Y') ?> Heritage Explorer</p>
+<footer class="bg-dark text-white text-center py-3 position-relative">
+    <p class="mb-0">&copy; <?= date('Y') ?> Heritage Explorer</p>
+    <a href="/Heritage-Database-Project/admin/login.php" 
+       class="text-white-50 small position-absolute bottom-0 end-0 me-2 mb-1"
+       style="font-size: 0.75rem; text-decoration: none;">
+       Admin Login
+    </a>
 </footer>
 </body>
 </html>

@@ -5,8 +5,8 @@ require_once 'headerFooter.php';
 require_once __DIR__ . '/../includes/db_connect.php';
 
 if (empty($_SESSION['admin_logged_in'])) {
-    header('Location: login.php');
-    exit;
+  header('Location: login.php');
+  exit;
 }
 
 // ========== Input Filters ==========
@@ -17,48 +17,119 @@ $dateFilter   = $_GET['date'] ?? '';
 $timeRange    = $_GET['range'] ?? '6m'; // optional: '6m', '12m', '3m', 'ytd'
 
 // Helper: sanitize for HTML
-function e($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
+function e($s)
+{
+  return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8');
+}
 
 // ========== Utility for date range ==========
 switch ($timeRange) {
-    case '3m': $interval = '3 MONTH'; break;
-    case '12m': $interval = '12 MONTH'; break;
-    case 'ytd': $interval = date('Y') . '-01-01'; break;
-    case '6m':
-    default: $interval = '6 MONTH'; break;
+  case '3m':
+    $interval = '3 MONTH';
+    break;
+  case '12m':
+    $interval = '12 MONTH';
+    break;
+  case 'ytd':
+    $interval = date('Y') . '-01-01';
+    break;
+  case '6m':
+  default:
+    $interval = '6 MONTH';
+    break;
 }
 
 // ========== STATS ==========
 try {
-    // Total heritage sites
-    $total_sites = (int) $pdo->query('SELECT COUNT(*) FROM HeritageSites')->fetchColumn();
+  // Total heritage sites
+  $total_sites = (int) $pdo->query('SELECT COUNT(*) FROM HeritageSites')->fetchColumn();
 
-    // Total unique visitors who have bookings
-    $total_visitors = (int) $pdo->query('SELECT COUNT(DISTINCT visitor_id) FROM Bookings')->fetchColumn();
+  // Total unique visitors who have bookings
+  $total_visitors = (int) $pdo->query('SELECT COUNT(DISTINCT visitor_id) FROM Bookings')->fetchColumn();
 
-    // Average rating across sites (only consider sites with at least one review)
-    $avg_rating_overall = $pdo->query("
+  // Average rating across sites (only consider sites with at least one review)
+  $avg_rating_overall = $pdo->query("
         SELECT ROUND(AVG(avg_rating),2) FROM (
             SELECT AVG(rating) AS avg_rating FROM Reviews GROUP BY site_id
         ) t
     ")->fetchColumn();
-    $avg_rating_overall = $avg_rating_overall !== null ? (float)$avg_rating_overall : 0.0;
+  $avg_rating_overall = $avg_rating_overall !== null ? (float)$avg_rating_overall : 0.0;
 
-    // Average ticket price (booked_ticket_price from Bookings)
-    $avg_ticket_price = (float) $pdo->query("SELECT ROUND(AVG(booked_ticket_price),2) FROM Bookings WHERE booked_ticket_price > 0")->fetchColumn() ?: 0;
+  // Average ticket price (booked_ticket_price from Bookings)
+  $avg_ticket_price = (float) $pdo->query("SELECT ROUND(AVG(booked_ticket_price),2) FROM Bookings WHERE booked_ticket_price > 0")->fetchColumn() ?: 0;
 
-    // Total bookings count
-    $total_bookings = (int) $pdo->query("SELECT COUNT(*) FROM Bookings")->fetchColumn();
+  // Total bookings count
+  $total_bookings = (int) $pdo->query("SELECT COUNT(*) FROM Bookings")->fetchColumn();
 
-    // Total revenue (successful payments)
-    $total_revenue = (float) $pdo->query("
+  // Total revenue (successful payments)
+  $total_revenue = (float) $pdo->query("
         SELECT IFNULL(SUM(amount),0) FROM Payments WHERE status IN ('successful','success')
     ")->fetchColumn();
+  /* ===========================================================
+   🔹 LAB 4 – Aggregates, Grouping, HAVING
+   =========================================================== */
+  $totalRevenue = $pdo->query("
+SELECT method, SUM(amount) AS total 
+FROM Payments 
+GROUP BY method 
+ORDER BY total DESC
+")->fetchAll(PDO::FETCH_ASSOC);
 
+  $avgGuideSalary = $pdo->query("SELECT ROUND(AVG(salary),2) AS avg_salary FROM Guides")->fetchColumn();
+
+  $unassignedGuides = $pdo->query("
+SELECT full_name FROM Guides 
+LEFT JOIN Assignments ON Guides.guide_id = Assignments.guide_id 
+WHERE Assignments.guide_id IS NULL
+")->fetchAll(PDO::FETCH_COLUMN);
+
+  $topSites = $pdo->query("
+SELECT h.name, COUNT(b.booking_id) AS total_bookings 
+FROM HeritageSites h
+JOIN Bookings b ON h.site_id = b.site_id
+GROUP BY h.name
+ORDER BY total_bookings DESC
+LIMIT 3
+")->fetchAll(PDO::FETCH_ASSOC);
+
+  $reviewsData = $pdo->query("
+SELECT v.full_name AS visitor, s.name AS site, r.rating, r.comment
+FROM Reviews r
+JOIN Visitors v ON r.visitor_id = v.visitor_id
+JOIN HeritageSites s ON r.site_id = s.site_id
+ORDER BY r.review_id DESC
+LIMIT 5
+")->fetchAll(PDO::FETCH_ASSOC);
+$sitesWithEvents = $pdo->query("
+    SELECT name FROM HeritageSites
+    WHERE site_id IN (SELECT site_id FROM Events)
+")->fetchAll(PDO::FETCH_COLUMN);
+  $bookingsWithPayments = $pdo->query("
+    SELECT b.booking_id, v.full_name, p.method, p.amount, p.status
+    FROM Bookings b
+    JOIN Visitors v ON b.visitor_id = v.visitor_id
+    JOIN Payments p ON b.booking_id = p.booking_id
+    LIMIT 5
+")->fetchAll(PDO::FETCH_ASSOC);
+$guidesWithoutSite = $pdo->query("
+    SELECT full_name FROM Guides
+    WHERE guide_id NOT IN (SELECT guide_id FROM Assignments)
+")->fetchAll(PDO::FETCH_COLUMN);
+$visitorsBookedNotReviewed = $pdo->query("
+    SELECT full_name FROM Visitors
+    WHERE visitor_id IN (SELECT visitor_id FROM Bookings)
+    AND visitor_id NOT IN (SELECT visitor_id FROM Reviews)
+")->fetchAll(PDO::FETCH_COLUMN);
+
+$sitesWithBookingsOrReviews = $pdo->query("
+    (SELECT site_id, name FROM HeritageSites WHERE site_id IN (SELECT site_id FROM Bookings))
+    UNION
+    (SELECT site_id, name FROM HeritageSites WHERE site_id IN (SELECT site_id FROM Reviews))
+")->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $ex) {
-    // If something goes wrong, set safe defaults
-    $total_sites = $total_visitors = $total_bookings = 0;
-    $avg_rating_overall = $avg_ticket_price = $total_revenue = 0;
+  // If something goes wrong, set safe defaults
+  $total_sites = $total_visitors = $total_bookings = 0;
+  $avg_rating_overall = $avg_ticket_price = $total_revenue = 0;
 }
 
 // ========== CHART DATA & DETAILED QUERIES ==========
@@ -67,36 +138,36 @@ try {
  * Bookings by month (chart) - respect timeRange when not 'ytd'
  */
 try {
-    if ($timeRange === 'ytd') {
-        $stmt = $pdo->prepare("
+  if ($timeRange === 'ytd') {
+    $stmt = $pdo->prepare("
             SELECT DATE_FORMAT(booking_date, '%Y-%m') AS ym, COUNT(*) AS cnt
             FROM Bookings
             WHERE booking_date >= :ytd_start
             GROUP BY ym
             ORDER BY ym
         ");
-        $ytdStart = date('Y') . '-01-01';
-        $stmt->execute([':ytd_start' => $ytdStart]);
-    } else {
-        $stmt = $pdo->prepare("
+    $ytdStart = date('Y') . '-01-01';
+    $stmt->execute([':ytd_start' => $ytdStart]);
+  } else {
+    $stmt = $pdo->prepare("
             SELECT DATE_FORMAT(booking_date, '%Y-%m') AS ym, COUNT(*) AS cnt
             FROM Bookings
             WHERE booking_date > DATE_SUB(CURDATE(), INTERVAL {$interval})
             GROUP BY ym
             ORDER BY ym
         ");
-        $stmt->execute();
-    }
-    $bookings_month = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt->execute();
+  }
+  $bookings_month = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $ex) {
-    $bookings_month = [];
+  $bookings_month = [];
 }
 
 /*
  * Monthly revenue (last 12 months)
  */
 try {
-    $stmt = $pdo->prepare("
+  $stmt = $pdo->prepare("
         SELECT DATE_FORMAT(p.paid_at, '%Y-%m') AS ym, IFNULL(SUM(p.amount),0) AS revenue
         FROM Payments p
         WHERE p.status IN ('successful','success')
@@ -104,49 +175,49 @@ try {
         GROUP BY ym
         ORDER BY ym
     ");
-    $stmt->execute();
-    $monthly_revenue = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  $stmt->execute();
+  $monthly_revenue = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $ex) {
-    $monthly_revenue = [];
+  $monthly_revenue = [];
 }
 
 /*
  * Revenue by method (apply method filter if provided)
  */
 try {
-    $q = "SELECT p.method, IFNULL(SUM(p.amount),0) AS total
+  $q = "SELECT p.method, IFNULL(SUM(p.amount),0) AS total
           FROM Payments p
           WHERE p.status IN ('successful','success')";
-    if ($methodFilter) $q .= " AND p.method = :method";
-    $q .= " GROUP BY p.method ORDER BY total DESC";
-    $stmt = $pdo->prepare($q);
-    if ($methodFilter) $stmt->execute([':method' => $methodFilter]);
-    else $stmt->execute();
-    $revenue_methods = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  if ($methodFilter) $q .= " AND p.method = :method";
+  $q .= " GROUP BY p.method ORDER BY total DESC";
+  $stmt = $pdo->prepare($q);
+  if ($methodFilter) $stmt->execute([':method' => $methodFilter]);
+  else $stmt->execute();
+  $revenue_methods = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $ex) {
-    $revenue_methods = [];
+  $revenue_methods = [];
 }
 
 /*
  * Payment statuses distribution
  */
 try {
-    $stmt = $pdo->prepare("
+  $stmt = $pdo->prepare("
       SELECT p.status, COUNT(*) AS cnt
       FROM Payments p
       GROUP BY p.status
     ");
-    $stmt->execute();
-    $payment_status = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  $stmt->execute();
+  $payment_status = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $ex) {
-    $payment_status = [];
+  $payment_status = [];
 }
 
 /*
  * Top sites by bookings
  */
 try {
-    $stmt = $pdo->prepare("
+  $stmt = $pdo->prepare("
         SELECT hs.site_id, hs.name, COUNT(b.booking_id) AS bookings_count
         FROM HeritageSites hs
         LEFT JOIN Bookings b ON hs.site_id = b.site_id
@@ -154,17 +225,17 @@ try {
         ORDER BY bookings_count DESC
         LIMIT 10
     ");
-    $stmt->execute();
-    $top_sites = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  $stmt->execute();
+  $top_sites = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $ex) {
-    $top_sites = [];
+  $top_sites = [];
 }
 
 /*
  * Site ratings (average)
  */
 try {
-    $stmt = $pdo->prepare("
+  $stmt = $pdo->prepare("
         SELECT hs.site_id, hs.name, ROUND(AVG(r.rating),1) AS avg_rating, COUNT(r.review_id) AS reviews_count
         FROM HeritageSites hs
         LEFT JOIN Reviews r ON hs.site_id = r.site_id
@@ -173,123 +244,63 @@ try {
         ORDER BY avg_rating DESC
         LIMIT 10
     ");
-    $stmt->execute();
-    $site_ratings = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  $stmt->execute();
+  $site_ratings = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $ex) {
-    $site_ratings = [];
+  $site_ratings = [];
 }
 
-/*
- * Guide workload (assignment count) and avg salary (allow guide filter)
- */
 try {
-    $q = "
+  $q = "
       SELECT g.guide_id, g.name, g.language, g.specialization, g.salary,
              COUNT(a.assign_id) AS assignments_count
       FROM Guides g
       LEFT JOIN Assignments a ON g.guide_id = a.guide_id
       WHERE 1
     ";
-    $params = [];
-    if ($guideFilter) {
-        $q .= " AND g.guide_id = :guide_id";
-        $params[':guide_id'] = $guideFilter;
-    }
-    $q .= " GROUP BY g.guide_id ORDER BY assignments_count DESC LIMIT 20";
-    $stmt = $pdo->prepare($q);
-    $stmt->execute($params);
-    $guide_workload = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  $params = [];
+  if ($guideFilter) {
+    $q .= " AND g.guide_id = :guide_id";
+    $params[':guide_id'] = $guideFilter;
+  }
+  $q .= " GROUP BY g.guide_id ORDER BY assignments_count DESC LIMIT 20";
+  $stmt = $pdo->prepare($q);
+  $stmt->execute($params);
+  $guide_workload = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $ex) {
-    $guide_workload = [];
+  $guide_workload = [];
 }
 
-// Average guide salary overall or for filtered guide
 try {
-    $q = "SELECT ROUND(AVG(salary),2) FROM Guides WHERE 1";
-    $params = [];
-    if ($guideFilter) {
-        $q .= " AND guide_id = :guide";
-        $params[':guide'] = $guideFilter;
-    }
-    $stmt = $pdo->prepare($q);
-    $stmt->execute($params);
-    $avgGuideSalary = (float) $stmt->fetchColumn();
-} catch (Exception $ex) {
-    $avgGuideSalary = 0.0;
-}
-
-/*
- * Unassigned guides
- */
-try {
-    $stmt = $pdo->prepare("
-      SELECT g.guide_id, g.name
-      FROM Guides g
-      WHERE NOT EXISTS (SELECT 1 FROM Assignments a WHERE a.guide_id = g.guide_id)
-      ORDER BY g.name
-    ");
-    $stmt->execute();
-    $unassignedGuides = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $ex) {
-    $unassignedGuides = [];
-}
-
-/*
- * Top 3 booked sites (respect siteFilter)
- */
-try {
-    $q = "
-      SELECT hs.site_id, hs.name, COUNT(b.booking_id) AS total_bookings
-      FROM Bookings b
-      JOIN HeritageSites hs ON b.site_id = hs.site_id
-      WHERE 1
-    ";
-    $params = [];
-    if ($siteFilter) {
-        $q .= " AND hs.site_id = :site";
-        $params[':site'] = $siteFilter;
-    }
-    $q .= " GROUP BY hs.site_id, hs.name ORDER BY total_bookings DESC LIMIT 3";
-    $stmt = $pdo->prepare($q);
-    $stmt->execute($params);
-    $topSites = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $ex) {
-    $topSites = [];
-}
-
-/*
- * Recent reviews (JOIN) - apply filters
- */
-try {
-    $q = "
+  $q = "
       SELECT r.review_id, v.name AS visitor, COALESCE(hs.name, '—') AS site, r.rating, r.comment, r.review_date
       FROM Reviews r
       JOIN Visitors v ON r.visitor_id = v.visitor_id
       LEFT JOIN HeritageSites hs ON r.site_id = hs.site_id
       WHERE 1
     ";
-    $params = [];
-    if ($siteFilter) {
-        $q .= " AND r.site_id = :site";
-        $params[':site'] = $siteFilter;
-    }
-    if ($dateFilter) {
-        $q .= " AND r.review_date = :date";
-        $params[':date'] = $dateFilter;
-    }
-    $q .= " ORDER BY r.review_id DESC LIMIT 10";
-    $stmt = $pdo->prepare($q);
-    $stmt->execute($params);
-    $reviewsData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  $params = [];
+  if ($siteFilter) {
+    $q .= " AND r.site_id = :site";
+    $params[':site'] = $siteFilter;
+  }
+  if ($dateFilter) {
+    $q .= " AND r.review_date = :date";
+    $params[':date'] = $dateFilter;
+  }
+  $q .= " ORDER BY r.review_id DESC LIMIT 10";
+  $stmt = $pdo->prepare($q);
+  $stmt->execute($params);
+  $reviewsData = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $ex) {
-    $reviewsData = [];
+  $reviewsData = [];
 }
 
 /*
  * Bookings by visitor nationality (top nationalities)
  */
 try {
-    $stmt = $pdo->prepare("
+  $stmt = $pdo->prepare("
       SELECT v.nationality, COUNT(b.booking_id) AS cnt
       FROM Bookings b
       JOIN Visitors v ON b.visitor_id = v.visitor_id
@@ -297,17 +308,17 @@ try {
       ORDER BY cnt DESC
       LIMIT 8
     ");
-    $stmt->execute();
-    $bookings_by_nationality = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  $stmt->execute();
+  $bookings_by_nationality = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $ex) {
-    $bookings_by_nationality = [];
+  $bookings_by_nationality = [];
 }
 
 /*
  * Upcoming events
  */
 try {
-    $stmt = $pdo->prepare("
+  $stmt = $pdo->prepare("
         SELECT e.event_id, e.name, e.event_date, e.event_time, hs.name AS site_name, e.capacity
         FROM Events e
         LEFT JOIN HeritageSites hs ON e.site_id = hs.site_id
@@ -315,50 +326,52 @@ try {
         ORDER BY e.event_date ASC, e.event_time ASC
         LIMIT 10
     ");
-    $stmt->execute();
-    $upcoming_events = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  $stmt->execute();
+  $upcoming_events = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $ex) {
-    $upcoming_events = [];
+  $upcoming_events = [];
 }
 
 /*
  * Refunds & failed payments in last 6 months
  */
 try {
-    $stmt = $pdo->prepare("
+  $stmt = $pdo->prepare("
       SELECT p.status, COUNT(*) AS cnt, IFNULL(SUM(p.amount),0) AS total
       FROM Payments p
       WHERE p.paid_at > DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
         AND p.status IN ('failed','refunded')
       GROUP BY p.status
     ");
-    $stmt->execute();
-    $recent_problem_payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  $stmt->execute();
+  $recent_problem_payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $ex) {
-    $recent_problem_payments = [];
+  $recent_problem_payments = [];
 }
-
-/*
- * Export links available in quick stats (we will reuse export_csv.php)
- * Make sure export_csv.php supports the 'type' parameter and optional filters.
- */
-
 // Prepare lists for filter selects (methods, guides, sites)
 try {
-    $methods = $pdo->query("SELECT DISTINCT method FROM Payments ORDER BY method")->fetchAll(PDO::FETCH_COLUMN);
-} catch (Exception $ex) { $methods = []; }
+  $methods = $pdo->query("SELECT DISTINCT method FROM Payments ORDER BY method")->fetchAll(PDO::FETCH_COLUMN);
+} catch (Exception $ex) {
+  $methods = [];
+}
 
 try {
-    $guides = $pdo->query("SELECT guide_id, name FROM Guides ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $ex) { $guides = []; }
+  $guides = $pdo->query("SELECT guide_id, name FROM Guides ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $ex) {
+  $guides = [];
+}
 
 try {
-    $sites = $pdo->query("SELECT site_id, name FROM HeritageSites ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $ex) { $sites = []; }
+  $sites = $pdo->query("SELECT site_id, name FROM HeritageSites ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $ex) {
+  $sites = [];
+}
 
 // ========== Render HTML ==========
-?><!doctype html>
+?>
+<!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -366,12 +379,30 @@ try {
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
-    canvas { height: 220px !important; }
-    .card-scroll { max-height: 420px; overflow:auto; }
-    .small-stat { font-size: 0.85rem; color:#666; }
-    .truncate { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; display:block; }
+    canvas {
+      height: 220px !important;
+    }
+
+    .card-scroll {
+      max-height: 420px;
+      overflow: auto;
+    }
+
+    .small-stat {
+      font-size: 0.85rem;
+      color: #666;
+    }
+
+    .truncate {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+      display: block;
+    }
   </style>
 </head>
+
 <body>
   <div class="container py-3">
 
@@ -494,7 +525,7 @@ try {
       <div class="col-lg-4">
         <div class="card p-3 card-scroll">
           <h5>Guides & Workload</h5>
-          <p class="mb-1 small-stat">Average salary: <strong><?= e(number_format($avgGuideSalary,2)) ?> BDT</strong></p>
+          <p class="mb-1 small-stat">Average salary: <strong><?= e(number_format($avgGuideSalary, 2)) ?> BDT</strong></p>
           <ul class="list-group mt-2">
             <?php foreach ($guide_workload as $g): ?>
               <li class="list-group-item">
@@ -505,7 +536,7 @@ try {
                   </div>
                   <div class="text-end">
                     <div class="badge bg-info"><?= e($g['assignments_count']) ?></div>
-                    <div class="small-stat mt-1"><?= e(number_format($g['salary'],2)) ?> BDT</div>
+                    <div class="small-stat mt-1"><?= e(number_format($g['salary'], 2)) ?> BDT</div>
                   </div>
                 </div>
               </li>
@@ -525,7 +556,7 @@ try {
       </div>
     </div>
 
-    
+
     <!-- FILTER FORM -->
     <div class="card p-3 mb-4">
       <h5 class="mb-3">Filter Analytics</h5>
@@ -568,10 +599,10 @@ try {
         <div class="col-md-1">
           <label class="form-label">Range</label>
           <select name="range" class="form-select">
-            <option value="3m" <?= ($timeRange==='3m' ? 'selected':'' ) ?>>3m</option>
-            <option value="6m" <?= ($timeRange==='6m' ? 'selected':'' ) ?>>6m</option>
-            <option value="12m" <?= ($timeRange==='12m' ? 'selected':'' ) ?>>12m</option>
-            <option value="ytd" <?= ($timeRange==='ytd' ? 'selected':'' ) ?>>YTD</option>
+            <option value="3m" <?= ($timeRange === '3m' ? 'selected' : '') ?>>3m</option>
+            <option value="6m" <?= ($timeRange === '6m' ? 'selected' : '') ?>>6m</option>
+            <option value="12m" <?= ($timeRange === '12m' ? 'selected' : '') ?>>12m</option>
+            <option value="ytd" <?= ($timeRange === 'ytd' ? 'selected' : '') ?>>YTD</option>
           </select>
         </div>
 
@@ -581,64 +612,50 @@ try {
         </div>
       </form>
     </div>
-    <!-- ADVANCED QUERY SHOWCASE -->
+
+    <!-- Analytics Section -->
     <div class="container my-5">
-      <h4>📊 Advanced Query Showcases</h4>
+      <h3>📊 Lab Query Showcases</h3>
+
       <div class="row">
         <div class="col-md-4">
-          <div class="card p-3">
-            <h6>💰 Revenue by Payment Method</h6>
-            <ul class="mb-0">
-              <?php foreach ($revenue_methods as $r): ?>
-                <li><?= e($r['method']) ?> — <?= number_format($r['total'], 2) ?> BDT</li>
-              <?php endforeach; ?>
-              <?php if (empty($revenue_methods)): ?><li>No payment data</li><?php endif; ?>
-            </ul>
+          <div class="site-card">
+            <h5>💰 Revenue by Payment Method</h5>
+            <ul><?php foreach ($totalRevenue as $r): ?><li><?= $r['method'] ?> — <?= number_format($r['total'], 2) ?></li><?php endforeach; ?></ul>
           </div>
         </div>
-
         <div class="col-md-4">
-          <div class="card p-3">
-            <h6>👨‍🏫 Avg Guide Salary</h6>
+          <div class="site-card">
+            <h5>👨‍🏫 Avg Guide Salary</h5>
             <p><?= number_format($avgGuideSalary, 2) ?> BDT</p>
-
-            <h6>Recent failed/refunded (6m)</h6>
-            <ul>
-              <?php foreach ($recent_problem_payments as $p): ?>
-                <li><?= e($p['status']) ?> — <?= e($p['cnt']) ?> (<?= number_format($p['total'],2) ?> BDT)</li>
-              <?php endforeach; ?>
-              <?php if (empty($recent_problem_payments)): ?><li>No failed/refunded payments in period</li><?php endif; ?>
-            </ul>
+            <h5>Unassigned Guides</h5>
+            <ul><?php foreach ($unassignedGuides as $g): ?><li><?= htmlspecialchars($g) ?></li><?php endforeach; ?></ul>
           </div>
         </div>
-
         <div class="col-md-4">
-          <div class="card p-3">
-            <h6>🏆 Top 3 Booked Sites</h6>
-            <ul>
-              <?php foreach ($topSites as $s): ?>
-                <li><?= e($s['name']) ?> — <?= e($s['total_bookings']) ?> bookings</li>
-              <?php endforeach; ?>
-              <?php if (empty($topSites)): ?><li>No bookings found</li><?php endif; ?>
-            </ul>
+          <div class="site-card">
+            <h5>🏆 Top 3 Booked Sites</h5>
+            <ul><?php foreach ($topSites as $s): ?><li><?= htmlspecialchars($s['name']) ?> — <?= $s['total_bookings'] ?> bookings</li><?php endforeach; ?></ul>
           </div>
         </div>
       </div>
 
-      <div class="card p-3 mt-3">
-        <h6>⭐ Recent Reviews</h6>
-        <?php if (empty($reviewsData)): ?>
-          <p class="text-muted">No recent reviews found for the selected filters.</p>
-        <?php else: ?>
-          <?php foreach ($reviewsData as $r): ?>
-            <p>
-              <strong><?= e($r['visitor']) ?></strong> → <em><?= e($r['site']) ?></em>: <?= e($r['rating']) ?>/5<br>
-              "<?= e($r['comment']) ?>" <br>
-              <small class="small-stat">Date: <?= e($r['review_date']) ?></small>
-            </p>
-            <hr>
-          <?php endforeach; ?>
-        <?php endif; ?>
+      <div class="site-card mt-4">
+        <h5>⭐ Recent Reviews (JOIN Example)</h5>
+        <?php foreach ($reviewsData as $r): ?>
+          <p><strong><?= htmlspecialchars($r['visitor']) ?></strong> rated <em><?= htmlspecialchars($r['site']) ?></em> → <?= htmlspecialchars($r['rating']) ?>/5<br>
+            "<?= htmlspecialchars($r['comment']) ?>"</p>
+          <hr>
+        <?php endforeach; ?>
+      </div>
+
+      <div class="site-card mt-4">
+        <h5>🧩 Subqueries & Joins</h5>
+        <p><strong>Sites With Events:</strong> <?= implode(', ', $sitesWithEvents) ?: 'None' ?></p>
+        <p><strong>Guides Without Site:</strong> <?= implode(', ', $guidesWithoutSite) ?: 'None' ?></p>
+        <p><strong>Visitors Booked But Not Reviewed:</strong> <?= implode(', ', $visitorsBookedNotReviewed) ?: 'None' ?></p>
+        <h6>Bookings + Payments (Join Example)</h6>
+        <ul><?php foreach ($bookingsWithPayments as $b): ?><li>#<?= $b['booking_id'] ?> - <?= $b['full_name'] ?> paid <?= number_format($b['amount'], 2) ?> via <?= $b['method'] ?> (<?= $b['status'] ?>)</li><?php endforeach; ?></ul>
       </div>
     </div>
 
@@ -648,7 +665,13 @@ try {
       <div class="table-responsive">
         <table class="table table-sm table-striped">
           <thead>
-            <tr><th>Event</th><th>Site</th><th>Date</th><th>Time</th><th>Capacity</th></tr>
+            <tr>
+              <th>Event</th>
+              <th>Site</th>
+              <th>Date</th>
+              <th>Time</th>
+              <th>Capacity</th>
+            </tr>
           </thead>
           <tbody>
             <?php foreach ($upcoming_events as $ev): ?>
@@ -660,7 +683,9 @@ try {
                 <td><?= e($ev['capacity']) ?></td>
               </tr>
             <?php endforeach; ?>
-            <?php if (empty($upcoming_events)): ?><tr><td colspan="5">No upcoming events</td></tr><?php endif; ?>
+            <?php if (empty($upcoming_events)): ?><tr>
+                <td colspan="5">No upcoming events</td>
+              </tr><?php endif; ?>
           </tbody>
         </table>
       </div>
@@ -690,7 +715,10 @@ try {
             backgroundColor: undefined // Let Chart.js default palette choose colors (we avoid hardcoding)
           }]
         },
-        options: { responsive: true, maintainAspectRatio: false }
+        options: {
+          responsive: true,
+          maintainAspectRatio: false
+        }
       });
     }
 
@@ -710,7 +738,10 @@ try {
             borderColor: undefined
           }]
         },
-        options: { responsive: true, maintainAspectRatio: false }
+        options: {
+          responsive: true,
+          maintainAspectRatio: false
+        }
       });
     }
 
@@ -726,7 +757,10 @@ try {
             backgroundColor: undefined
           }]
         },
-        options: { responsive: true, maintainAspectRatio: false }
+        options: {
+          responsive: true,
+          maintainAspectRatio: false
+        }
       });
     }
 
@@ -742,7 +776,10 @@ try {
             backgroundColor: undefined
           }]
         },
-        options: { responsive: true, maintainAspectRatio: false }
+        options: {
+          responsive: true,
+          maintainAspectRatio: false
+        }
       });
     }
 
@@ -759,7 +796,11 @@ try {
             backgroundColor: undefined
           }]
         },
-        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false }
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false
+        }
       });
     }
 
@@ -776,7 +817,10 @@ try {
             backgroundColor: undefined
           }]
         },
-        options: { responsive: true, maintainAspectRatio: false }
+        options: {
+          responsive: true,
+          maintainAspectRatio: false
+        }
       });
     }
   </script>

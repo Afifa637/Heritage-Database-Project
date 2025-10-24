@@ -10,19 +10,19 @@ $stmt = $pdo->prepare("SELECT * FROM Visitors WHERE visitor_id=?");
 $stmt->execute([$visitor_id]);
 $visitor = $stmt->fetch();
 
-# --- Update Profile (if submitted) ---
+# --- Update Profile ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
-    $name = trim($_POST['name']);
+    $full_name = trim($_POST['full_name']);
     $phone = trim($_POST['phone']);
     $nationality = trim($_POST['nationality']);
 
     if (!empty($_POST['password'])) {
         $password_hash = password_hash($_POST['password'], PASSWORD_BCRYPT);
-        $stmt = $pdo->prepare("UPDATE Visitors SET name=?, phone=?, nationality=?, password_hash=? WHERE visitor_id=?");
-        $stmt->execute([$name, $phone, $nationality, $password_hash, $visitor_id]);
+        $stmt = $pdo->prepare("UPDATE Visitors SET full_name=?, phone=?, nationality=?, password_hash=? WHERE visitor_id=?");
+        $stmt->execute([$full_name, $phone, $nationality, $password_hash, $visitor_id]);
     } else {
-        $stmt = $pdo->prepare("UPDATE Visitors SET name=?, phone=?, nationality=? WHERE visitor_id=?");
-        $stmt->execute([$name, $phone, $nationality, $visitor_id]);
+        $stmt = $pdo->prepare("UPDATE Visitors SET full_name=?, phone=?, nationality=? WHERE visitor_id=?");
+        $stmt->execute([$full_name, $phone, $nationality, $visitor_id]);
     }
 
     header("Location: profile.php?updated=1");
@@ -70,7 +70,6 @@ $reviews = $stmt->fetchAll();
 </head>
 <body>
 
-<!-- Navbar -->
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
   <div class="container">
     <a class="navbar-brand fw-bold" href="../index.php">🌍 Heritage Explorer</a>
@@ -82,7 +81,6 @@ $reviews = $stmt->fetchAll();
 
 <div class="container py-5">
   <div class="row">
-    <!-- Sidebar -->
     <div class="col-md-3 mb-4">
       <div class="list-group">
         <a href="#profile" class="list-group-item list-group-item-action active" data-bs-toggle="tab">👤 Profile</a>
@@ -92,14 +90,13 @@ $reviews = $stmt->fetchAll();
       </div>
     </div>
 
-    <!-- Content -->
     <div class="col-md-9">
       <div class="tab-content">
 
         <!-- Profile -->
         <div class="tab-pane fade show active" id="profile">
           <div class="card p-4">
-            <h3 class="mb-3">Welcome, <?= htmlspecialchars($visitor['name']) ?></h3>
+            <h3 class="mb-3">Welcome, <?= htmlspecialchars($visitor['full_name']) ?></h3>
             <?php if (isset($_GET['updated'])): ?>
               <div class="alert alert-success">✅ Profile updated successfully!</div>
             <?php endif; ?>
@@ -108,7 +105,7 @@ $reviews = $stmt->fetchAll();
               <input type="hidden" name="update_profile" value="1">
               <div class="mb-3">
                 <label class="form-label">Full Name</label>
-                <input type="text" name="name" value="<?= htmlspecialchars($visitor['name']) ?>" class="form-control" required>
+                <input type="text" name="full_name" value="<?= htmlspecialchars($visitor['full_name']) ?>" class="form-control" required>
               </div>
               <div class="mb-3">
                 <label class="form-label">Phone</label>

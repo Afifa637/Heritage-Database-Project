@@ -6,13 +6,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = strtolower(trim($_POST['email']));
     $password = $_POST['password'];
 
-    $stmt = $pdo->prepare("SELECT visitor_id, password_hash, name FROM Visitors WHERE email=?");
+    // ✅ Corrected column name: full_name
+    $stmt = $pdo->prepare("SELECT visitor_id, password_hash, full_name FROM Visitors WHERE email=?");
     $stmt->execute([$email]);
     $user = $stmt->fetch();
 
     if ($user && password_verify($password, $user['password_hash'])) {
         $_SESSION['visitor_id'] = $user['visitor_id'];
-        $_SESSION['visitor_name'] = $user['name'];
+        $_SESSION['visitor_name'] = $user['full_name'];
         header("Location: profile.php");
         exit;
     } else {
