@@ -1,54 +1,156 @@
 <?php
+declare(strict_types=1);
 session_start();
 require_once __DIR__ . '/includes/db_connect.php';
 
-$booking_id = isset($_GET['booking_id']) ? (int)$_GET['booking_id'] : 0;
-if (!$booking_id) die("Invalid booking ID");
+// Minimal helper
+function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES | ENT_HTML5); }
 
-// Fetch booking
+// CSRF helper
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+// booking_id from GET
+$booking_id = isset($_GET['booking_id']) ? (int)$_GET['booking_id'] : 0;
+if ($booking_id <= 0) {
+    http_response_code(400);
+    exit("Invalid booking ID");
+}
+
+// fetch booking (join site/event for display)
 $stmt = $pdo->prepare("
     SELECT b.*, s.name AS site_name, e.name AS event_name
     FROM Bookings b
     LEFT JOIN HeritageSites s ON b.site_id = s.site_id
     LEFT JOIN Events e ON b.event_id = e.event_id
     WHERE b.booking_id = ?
+    LIMIT 1
 ");
 $stmt->execute([$booking_id]);
 $booking = $stmt->fetch(PDO::FETCH_ASSOC);
-if (!$booking) die("Booking not found");
+if (!$booking) {
+    http_response_code(404);
+    exit("Booking not found");
+}
 
-// Fetch latest payment
-$q = $pdo->prepare("SELECT * FROM Payments WHERE booking_id=? ORDER BY paid_at DESC LIMIT 1");
+// Fetch latest payment for this booking
+$q = $pdo->prepare("SELECT * FROM Payments WHERE booking_id = ? ORDER BY paid_at DESC LIMIT 1");
 $q->execute([$booking_id]);
 $payment = $q->fetch(PDO::FETCH_ASSOC);
 
+// ===== Get allowed payment methods from DB schema (enum) =====
+// Try information_schema to pull enum options for Payments.method
+$allowed_methods = [];
+
+try {
+    $sql = "
+      SELECT COLUMN_TYPE
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'Payments'
+        AND COLUMN_NAME = 'method'
+      LIMIT 1
+    ";
+    $row = $pdo->query($sql)->fetch(PDO::FETCH_ASSOC);
+
+    if (!empty($row['COLUMN_TYPE'])) {
+        // COLUMN_TYPE looks like: enum('bkash','nagad','rocket','card','bank_transfer')
+        $col = $row['COLUMN_TYPE'];
+        if (preg_match("/^enum\((.*)\)$/i", $col, $m)) {
+            // split quoted, comma-separated values safely
+            $vals = str_getcsv($m[1], ',', "'");
+            foreach ($vals as $v) {
+                $v = trim($v, " \t\n\r\0\x0B'");
+                if ($v !== '') $allowed_methods[] = $v;
+            }
+        }
+    }
+} catch (Exception $e) {
+    // ignore and fallback below
+}
+
+// Fallback: if enum parsing failed, use distinct methods present in table
+if (empty($allowed_methods)) {
+    $rows = $pdo->query("SELECT DISTINCT method FROM Payments WHERE method IS NOT NULL")->fetchAll(PDO::FETCH_COLUMN);
+    if ($rows) $allowed_methods = array_values($rows);
+}
+
+// If still empty, provide a safe default (won't be hard-coded in your final DB)
+if (empty($allowed_methods)) {
+    $allowed_methods = ['card', 'bank_transfer']; // emergency fallback
+}
+
+// Normalize: lowercase for comparison, but preserve display-case from DB
+$allowed_lc_map = [];
+foreach ($allowed_methods as $m) {
+    $allowed_lc_map[strtolower($m)] = $m;
+}
+
 // --- Handle payment submission ---
+$errors = [];
+$success = false;
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $method = strtolower(trim($_POST['method'] ?? ''));
-    $allowed = ['bkash', 'nagad', 'rocket', 'card', 'bank_transfer'];
-    if (!in_array($method, $allowed, true)) die("Invalid payment method");
+    // CSRF
+    $csrf = $_POST['csrf_token'] ?? '';
+    if (!hash_equals($_SESSION['csrf_token'], (string)$csrf)) {
+        http_response_code(400);
+        exit("Invalid CSRF token");
+    }
 
-    $pdo->beginTransaction();
-    try {
-        // Update Payment
-        $amount = (float)$booking['booked_ticket_price'];
+    $method_in = strtolower(trim((string)($_POST['method'] ?? '')));
+    if ($method_in === '' || !array_key_exists($method_in, $allowed_lc_map)) {
+        $errors[] = "Invalid payment method selected.";
+    }
 
-        $ins = $pdo->prepare("
-            INSERT INTO Payments (booking_id, amount, method, status, paid_at)
-            VALUES (?, ?, ?, 'successful', NOW())
-        ");
-        $ins->execute([$booking_id, $amount, $method]);
+    // check booking unpaid state if you require it
+    if ($booking['payment_status'] === 'paid') {
+        $errors[] = "This booking is already paid.";
+    }
 
-        // Update booking status
-        $upd = $pdo->prepare("UPDATE Bookings SET payment_status='paid' WHERE booking_id=?");
-        $upd->execute([$booking_id]);
+    // amount from booking (booked_ticket_price)
+    $amount = (float)($booking['booked_ticket_price'] ?? 0.00);
+    if ($amount <= 0) {
+        $errors[] = "Invalid amount to charge.";
+    }
 
-        $pdo->commit();
-        header("Location: payment_process.php?booking_id={$booking_id}");
-        exit;
-    } catch (Exception $e) {
-        $pdo->rollBack();
-        die("Payment failed: " . htmlspecialchars($e->getMessage()));
+    if (empty($errors)) {
+        $method_db = $allowed_lc_map[$method_in]; // canonical case from DB
+
+        try {
+            $pdo->beginTransaction();
+
+            // Insert payment (bind types explicitly)
+            $ins = $pdo->prepare("
+                INSERT INTO Payments (booking_id, amount, method, status, paid_at)
+                VALUES (:bid, :amt, :method, :status, NOW())
+            ");
+            $ins->bindValue(':bid', $booking_id, PDO::PARAM_INT);
+            $ins->bindValue(':amt', number_format($amount, 2, '.', ''), PDO::PARAM_STR); // DECIMAL as string
+            $ins->bindValue(':method', $method_db, PDO::PARAM_STR);
+            $ins->bindValue(':status', 'successful', PDO::PARAM_STR);
+            $ins->execute();
+
+            // Update booking payment_status -> 'paid'
+            $upd = $pdo->prepare("UPDATE Bookings SET payment_status = 'paid' WHERE booking_id = :bid");
+            $upd->execute([':bid' => $booking_id]);
+
+            $pdo->commit();
+            $success = true;
+
+            // reload latest payment for display
+            $q->execute([$booking_id]);
+            $payment = $q->fetch(PDO::FETCH_ASSOC);
+
+            // Refresh booking status for display
+            $stmt->execute([$booking_id]);
+            $booking = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            $errors[] = "Payment processing failed: " . h($e->getMessage());
+        }
     }
 }
 ?>
@@ -64,34 +166,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <div class="container my-5">
   <div class="card shadow p-4 mx-auto" style="max-width:700px;">
     <h2 class="text-primary mb-3">Booking Payment</h2>
+
+    <?php if ($errors): ?>
+      <div class="alert alert-danger">
+        <ul class="mb-0">
+          <?php foreach ($errors as $err): ?>
+            <li><?= h($err) ?></li>
+          <?php endforeach;?>
+        </ul>
+      </div>
+    <?php endif; ?>
+
+    <?php if ($success): ?>
+      <div class="alert alert-success">✅ Payment completed successfully.</div>
+    <?php endif; ?>
+
     <p><strong>Booking ID:</strong> #<?= (int)$booking['booking_id'] ?></p>
-    <p><strong>Site/Event:</strong> <?= htmlspecialchars($booking['site_name'] ?: $booking['event_name'], ENT_QUOTES) ?></p>
+    <p><strong>Site/Event:</strong> <?= h($booking['site_name'] ?: $booking['event_name'] ?? '—') ?></p>
     <p><strong>Tickets:</strong> <?= (int)$booking['no_of_tickets'] ?></p>
-    <p><strong>Total Price:</strong> ৳<?= number_format($booking['booked_ticket_price'], 2) ?></p>
-    <p><strong>Status:</strong> <?= htmlspecialchars($booking['payment_status'], ENT_QUOTES) ?></p>
+    <p><strong>Total Price:</strong> ৳<?= number_format((float)$booking['booked_ticket_price'], 2) ?></p>
+    <p><strong>Status:</strong> <?= h($booking['payment_status']) ?></p>
 
     <?php if ($payment): ?>
       <hr>
-      <p><strong>Last Payment:</strong> <?= htmlspecialchars($payment['method']) ?> (<?= htmlspecialchars($payment['status']) ?>)</p>
-      <p class="small text-muted">At <?= htmlspecialchars($payment['paid_at']) ?></p>
+      <p><strong>Last Payment:</strong> <?= h($payment['method']) ?> (<?= h($payment['status']) ?>)</p>
+      <p class="small text-muted">At <?= h($payment['paid_at']) ?></p>
     <?php endif; ?>
 
     <?php if ($booking['payment_status'] !== 'paid'): ?>
-      <form method="post" class="mt-3">
-        <label for="method" class="form-label">Choose Payment Method</label>
-        <select name="method" id="method" class="form-select" required>
-          <option value="">--Select--</option>
-          <option value="bkash">Bkash</option>
-          <option value="nagad">Nagad</option>
-          <option value="rocket">Rocket</option>
-          <option value="card">Card</option>
-          <option value="bank_transfer">Bank Transfer</option>
-        </select>
-        <button type="submit" class="btn btn-primary mt-3">Pay Now</button>
+      <form method="post" class="mt-3" novalidate>
+        <input type="hidden" name="csrf_token" value="<?= h($_SESSION['csrf_token']) ?>">
+        <div class="mb-3">
+          <label for="method" class="form-label">Choose Payment Method</label>
+          <select name="method" id="method" class="form-select" required>
+            <option value="">-- Select payment method --</option>
+            <?php foreach ($allowed_methods as $m): ?>
+              <option value="<?= h($m) ?>"><?= h(ucfirst(str_replace('_', ' ', $m))) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary mt-2">Pay Now</button>
       </form>
     <?php else: ?>
       <div class="alert alert-success mt-3">✅ Payment completed successfully.</div>
     <?php endif; ?>
+
+    <div class="mt-4 text-muted small">
+      <strong>Allowed methods from DB:</strong> <?= h(implode(', ', $allowed_methods)) ?>
+    </div>
   </div>
 </div>
 </body>

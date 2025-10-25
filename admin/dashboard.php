@@ -100,7 +100,7 @@ JOIN HeritageSites s ON r.site_id = s.site_id
 ORDER BY r.review_id DESC
 LIMIT 5
 ")->fetchAll(PDO::FETCH_ASSOC);
-$sitesWithEvents = $pdo->query("
+  $sitesWithEvents = $pdo->query("
     SELECT name FROM HeritageSites
     WHERE site_id IN (SELECT site_id FROM Events)
 ")->fetchAll(PDO::FETCH_COLUMN);
@@ -111,17 +111,17 @@ $sitesWithEvents = $pdo->query("
     JOIN Payments p ON b.booking_id = p.booking_id
     LIMIT 5
 ")->fetchAll(PDO::FETCH_ASSOC);
-$guidesWithoutSite = $pdo->query("
+  $guidesWithoutSite = $pdo->query("
     SELECT full_name FROM Guides
     WHERE guide_id NOT IN (SELECT guide_id FROM Assignments)
 ")->fetchAll(PDO::FETCH_COLUMN);
-$visitorsBookedNotReviewed = $pdo->query("
+  $visitorsBookedNotReviewed = $pdo->query("
     SELECT full_name FROM Visitors
     WHERE visitor_id IN (SELECT visitor_id FROM Bookings)
     AND visitor_id NOT IN (SELECT visitor_id FROM Reviews)
 ")->fetchAll(PDO::FETCH_COLUMN);
 
-$sitesWithBookingsOrReviews = $pdo->query("
+  $sitesWithBookingsOrReviews = $pdo->query("
     (SELECT site_id, name FROM HeritageSites WHERE site_id IN (SELECT site_id FROM Bookings))
     UNION
     (SELECT site_id, name FROM HeritageSites WHERE site_id IN (SELECT site_id FROM Reviews))
@@ -825,4 +825,5 @@ try {
     }
   </script>
 </body>
+
 </html>

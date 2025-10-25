@@ -68,7 +68,7 @@ $where = [];
 $params = [];
 
 if (!empty($_GET['q'])) {
-  $where[] = "(g.name LIKE :kw OR g.specialization LIKE :kw)";
+  $where[] = "(g.full_name LIKE :kw OR g.specialization LIKE :kw)";
   $params['kw'] = '%' . $_GET['q'] . '%';
 }
 
