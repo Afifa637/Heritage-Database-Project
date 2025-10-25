@@ -1,4 +1,5 @@
 <?php
+include __DIR__ . '/../includes/headerFooter.php';
 require_once __DIR__ . '/../includes/db_connect.php';
 require_once __DIR__ . '/../includes/auth.php';
 requireVisitorLogin();
@@ -83,15 +84,6 @@ $reviews = $stmt->fetchAll();
 </head>
 
 <body>
-
-  <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
-    <div class="container">
-      <a class="navbar-brand fw-bold" href="../index.php">🌍 Heritage Explorer</a>
-      <div>
-        <a href="logout.php" class="btn btn-outline-light btn-sm">Logout</a>
-      </div>
-    </div>
-  </nav>
 
   <div class="container py-5">
     <div class="row">
@@ -213,12 +205,12 @@ $reviews = $stmt->fetchAll();
         </div>
       </div>
     </div>
-  </div>
+ 
 
   <footer class="text-center py-3 bg-dark text-light">
     <small>&copy; <?= date("Y") ?> Heritage Explorer | All Rights Reserved</small>
   </footer>
-
+  </div>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 

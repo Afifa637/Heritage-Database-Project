@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-session_start();
+include __DIR__ . '/includes/headerFooter.php';
 require_once __DIR__ . '/includes/db_connect.php';
 
 // Minimal helper
@@ -92,66 +92,85 @@ $errors = [];
 $success = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // CSRF
-    $csrf = $_POST['csrf_token'] ?? '';
-    if (!hash_equals($_SESSION['csrf_token'], (string)$csrf)) {
-        http_response_code(400);
-        exit("Invalid CSRF token");
-    }
+  // CSRF
+  $csrf = $_POST['csrf_token'] ?? '';
+  if (!hash_equals($_SESSION['csrf_token'], (string)$csrf)) {
+      http_response_code(400);
+      exit("Invalid CSRF token");
+  }
 
-    $method_in = strtolower(trim((string)($_POST['method'] ?? '')));
-    if ($method_in === '' || !array_key_exists($method_in, $allowed_lc_map)) {
-        $errors[] = "Invalid payment method selected.";
-    }
+  $method_in = strtolower(trim((string)($_POST['method'] ?? '')));
+  if ($method_in === '' || !array_key_exists($method_in, $allowed_lc_map)) {
+      $errors[] = "Invalid payment method selected.";
+  }
 
-    // check booking unpaid state if you require it
-    if ($booking['payment_status'] === 'paid') {
-        $errors[] = "This booking is already paid.";
-    }
+  if ($booking['payment_status'] === 'paid') {
+      $errors[] = "This booking is already paid.";
+  }
 
-    // amount from booking (booked_ticket_price)
-    $amount = (float)($booking['booked_ticket_price'] ?? 0.00);
-    if ($amount <= 0) {
-        $errors[] = "Invalid amount to charge.";
-    }
+  $amount = (float)($booking['booked_ticket_price'] ?? 0.00);
+  if ($amount <= 0) {
+      $errors[] = "Invalid amount to charge.";
+  }
 
-    if (empty($errors)) {
-        $method_db = $allowed_lc_map[$method_in]; // canonical case from DB
+  if (empty($errors)) {
+      $method_db = $allowed_lc_map[$method_in]; // canonical case from DB
 
-        try {
-            $pdo->beginTransaction();
+      try {
+          $pdo->beginTransaction();
 
-            // Insert payment (bind types explicitly)
-            $ins = $pdo->prepare("
-                INSERT INTO Payments (booking_id, amount, method, status, paid_at)
-                VALUES (:bid, :amt, :method, :status, NOW())
-            ");
-            $ins->bindValue(':bid', $booking_id, PDO::PARAM_INT);
-            $ins->bindValue(':amt', number_format($amount, 2, '.', ''), PDO::PARAM_STR); // DECIMAL as string
-            $ins->bindValue(':method', $method_db, PDO::PARAM_STR);
-            $ins->bindValue(':status', 'successful', PDO::PARAM_STR);
-            $ins->execute();
+          // --- Check if a payment already exists for this booking ---
+          $check = $pdo->prepare("SELECT payment_id, status FROM Payments WHERE booking_id = ? LIMIT 1");
+          $check->execute([$booking_id]);
+          $existing = $check->fetch(PDO::FETCH_ASSOC);
 
-            // Update booking payment_status -> 'paid'
-            $upd = $pdo->prepare("UPDATE Bookings SET payment_status = 'paid' WHERE booking_id = :bid");
-            $upd->execute([':bid' => $booking_id]);
+          if ($existing) {
+              // ✅ Update existing payment
+              $updPay = $pdo->prepare("
+                  UPDATE Payments
+                  SET amount = :amt, method = :method, status = :status, paid_at = NOW()
+                  WHERE payment_id = :pid
+              ");
+              $updPay->execute([
+                  ':amt'    => number_format($amount, 2, '.', ''),
+                  ':method' => $method_db,
+                  ':status' => 'successful',
+                  ':pid'    => $existing['payment_id']
+              ]);
+          } else {
+              // 🆕 Create new payment record only if none exists
+              $ins = $pdo->prepare("
+                  INSERT INTO Payments (booking_id, amount, method, status, paid_at)
+                  VALUES (:bid, :amt, :method, :status, NOW())
+              ");
+              $ins->execute([
+                  ':bid' => $booking_id,
+                  ':amt' => number_format($amount, 2, '.', ''),
+                  ':method' => $method_db,
+                  ':status' => 'initiated'
+              ]);
+          }
 
-            $pdo->commit();
-            $success = true;
+          // ✅ Update booking payment_status if payment is successful
+          $upd = $pdo->prepare("UPDATE Bookings SET payment_status = 'paid' WHERE booking_id = :bid");
+          $upd->execute([':bid' => $booking_id]);
 
-            // reload latest payment for display
-            $q->execute([$booking_id]);
-            $payment = $q->fetch(PDO::FETCH_ASSOC);
+          $pdo->commit();
+          $success = true;
 
-            // Refresh booking status for display
-            $stmt->execute([$booking_id]);
-            $booking = $stmt->fetch(PDO::FETCH_ASSOC);
+          // reload latest payment for display
+          $q->execute([$booking_id]);
+          $payment = $q->fetch(PDO::FETCH_ASSOC);
 
-        } catch (Exception $e) {
-            $pdo->rollBack();
-            $errors[] = "Payment processing failed: " . h($e->getMessage());
-        }
-    }
+          // Refresh booking status for display
+          $stmt->execute([$booking_id]);
+          $booking = $stmt->fetch(PDO::FETCH_ASSOC);
+
+      } catch (Exception $e) {
+          $pdo->rollBack();
+          $errors[] = "Payment processing failed: " . h($e->getMessage());
+      }
+  }
 }
 ?>
 <!doctype html>
@@ -216,5 +235,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
   </div>
 </div>
+<footer class="bg-dark text-white text-center py-3 w-100" style="margin-top: 40px;">
+  <div class="container position-relative">
+    <p class="mb-0">&copy; <?= date('Y') ?> Heritage Explorer</p>
+    <a href="/Heritage-Database-Project/admin/login.php" 
+       class="text-white-50 small position-absolute bottom-0 end-0 me-2 mb-1"
+       style="font-size: 0.75rem; text-decoration: none;">
+       Admin Login
+    </a>
+  </div>
+</footer>
 </body>
 </html>

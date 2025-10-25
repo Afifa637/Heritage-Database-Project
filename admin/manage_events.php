@@ -113,74 +113,225 @@ $sites = $pdo->query('SELECT site_id, name FROM HeritageSites ORDER BY name')->f
 $unesco_statuses = ['None', 'Tentative', 'World Heritage'];
 
 // ----------------------
-// SAFE SQL RUNNER (read-only queries) - whitelist
+// SAFE SQL RUNNER (read-only queries) - covers Lab 3–6
 // ----------------------
 $safe_queries = [
-  'events_next_30' => [
-    'title' => 'Events in next 30 days',
-    'sql' => "SELECT e.event_id, e.name, e.event_date, e.event_time, s.name AS site_name, e.ticket_price
+  // ---------------- LAB 3: Filtering / Constraints / Range / Set Membership / Ordering ----------------
+  'filter_by_keyword' => [
+    'title' => 'Filter: Events containing keyword "Festival" (LIKE)',
+    'sql' => "SELECT e.event_id, e.name, e.event_date, s.name AS site_name
 FROM Events e
 JOIN HeritageSites s ON e.site_id = s.site_id
-WHERE e.event_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)
+WHERE e.name LIKE '%Festival%'
 ORDER BY e.event_date ASC
-LIMIT 500"
+LIMIT 200"
   ],
-  'most_expensive_events' => [
-    'title' => 'Top 100 most expensive events by ticket_price',
-    'sql' => "SELECT e.event_id, e.name, s.name AS site_name, e.ticket_price, e.event_date
+  'range_search_ticket_price' => [
+    'title' => 'Range search: Events priced between 50 and 200',
+    'sql' => "SELECT e.event_id, e.name, e.ticket_price, e.event_date, s.name AS site_name
 FROM Events e
 JOIN HeritageSites s ON e.site_id = s.site_id
-ORDER BY e.ticket_price DESC
+WHERE e.ticket_price BETWEEN 50 AND 200
+ORDER BY e.ticket_price ASC
+LIMIT 200"
+  ],
+  'set_membership_in' => [
+    'title' => 'Set membership: Events at selected UNESCO statuses',
+    'sql' => "SELECT e.event_id, e.name, s.unesco_status, e.event_date
+FROM Events e
+JOIN HeritageSites s ON e.site_id = s.site_id
+WHERE s.unesco_status IN ('World Heritage', 'Tentative')
+ORDER BY s.unesco_status, e.event_date
+LIMIT 200"
+  ],
+  'constraint_check_capacity' => [
+    'title' => 'Constraint check: Events with zero or negative capacity',
+    'sql' => "SELECT event_id, name, capacity, event_date
+FROM Events
+WHERE capacity <= 0
+ORDER BY event_date DESC
 LIMIT 100"
   ],
-  'events_per_site' => [
-    'title' => 'Number of events per site',
+  'order_by_multiple_columns' => [
+    'title' => 'Ordering: by ticket_price DESC then event_date ASC',
+    'sql' => "SELECT e.event_id, e.name, e.ticket_price, e.event_date, s.name AS site_name
+FROM Events e
+JOIN HeritageSites s ON e.site_id = s.site_id
+ORDER BY e.ticket_price DESC, e.event_date ASC
+LIMIT 200"
+  ],
+
+  // ---------------- LAB 4: Aggregates / GROUP BY / HAVING ----------------
+  'count_events_per_site' => [
+    'title' => 'Aggregates: Count events per site',
     'sql' => "SELECT s.site_id, s.name AS site_name, COUNT(e.event_id) AS events_count
 FROM HeritageSites s
 LEFT JOIN Events e ON e.site_id = s.site_id
 GROUP BY s.site_id
+HAVING events_count >= 0
 ORDER BY events_count DESC
 LIMIT 200"
   ],
-  'upcoming_capacity_summary' => [
-    'title' => 'Upcoming events capacity summary (next 90 days)',
-    'sql' => "SELECT COUNT(*) AS events_count, SUM(capacity) AS total_capacity, AVG(ticket_price) AS avg_ticket
+  'avg_price_by_month' => [
+    'title' => 'Aggregates: Avg ticket price per month',
+    'sql' => "SELECT DATE_FORMAT(event_date, '%Y-%m') AS month, ROUND(AVG(ticket_price),2) AS avg_price, COUNT(*) AS total_events
 FROM Events
-WHERE event_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 90 DAY)"
-  ],
-  'events_with_no_bookings' => [
-    'title' => 'Events with no bookings',
-    'sql' => "SELECT e.event_id, e.name, s.name AS site_name, e.event_date
-FROM Events e
-LEFT JOIN Bookings b ON b.event_id = e.event_id
-JOIN HeritageSites s ON e.site_id = s.site_id
-WHERE b.booking_id IS NULL
-ORDER BY e.event_date DESC
-LIMIT 500"
-  ],
-  'events_by_unesco_status' => [
-    'title' => 'Events grouped by site UNESCO status',
-    'sql' => "SELECT s.unesco_status, COUNT(e.event_id) AS events_count
-FROM Events e
-JOIN HeritageSites s ON e.site_id = s.site_id
-GROUP BY s.unesco_status"
-  ],
-  'events_search_sample' => [
-    'title' => 'Sample text search in event descriptions (first 200 matches)',
-    'sql' => "SELECT e.event_id, e.name, LEFT(e.description,200) AS excerpt, s.name AS site_name
-FROM Events e
-JOIN HeritageSites s ON e.site_id = s.site_id
-WHERE MATCH(e.description) AGAINST ('+festival +culture' IN BOOLEAN MODE)
+GROUP BY month
+ORDER BY month DESC
 LIMIT 200"
   ],
-  'revenue_by_event' => [
-    'title' => 'Revenue by event (payments sum) — read-only',
-    'sql' => "SELECT e.event_id, e.name, COALESCE(SUM(p.amount),0) AS total_collected
+  'capacity_stats_unesco' => [
+    'title' => 'Aggregates: Total capacity by UNESCO status (HAVING)',
+    'sql' => "SELECT s.unesco_status, SUM(e.capacity) AS total_capacity, AVG(e.ticket_price) AS avg_price
 FROM Events e
-LEFT JOIN Bookings b ON b.event_id = e.event_id
-LEFT JOIN Payments p ON p.booking_id = b.booking_id AND p.status = 'successful'
+JOIN HeritageSites s ON e.site_id = s.site_id
+GROUP BY s.unesco_status
+HAVING total_capacity > 0
+ORDER BY total_capacity DESC"
+  ],
+
+  // ---------------- LAB 5: Subqueries / Set Operations / Views ----------------
+  'subquery_future_events' => [
+    'title' => 'Subquery: Events at sites with >3 upcoming events',
+    'sql' => "SELECT e.event_id, e.name, e.event_date, s.name AS site_name
+FROM Events e
+JOIN HeritageSites s ON e.site_id = s.site_id
+WHERE e.site_id IN (
+  SELECT site_id
+  FROM Events
+  WHERE event_date >= CURDATE()
+  GROUP BY site_id
+  HAVING COUNT(*) > 3
+)
+ORDER BY e.event_date ASC
+LIMIT 300"
+  ],
+  'exists_notexists' => [
+    'title' => 'Subquery: Events with bookings but no payments',
+    'sql' => "SELECT DISTINCT e.event_id, e.name, s.name AS site_name
+FROM Events e
+JOIN HeritageSites s ON e.site_id = s.site_id
+WHERE EXISTS (SELECT 1 FROM Bookings b WHERE b.event_id = e.event_id)
+  AND NOT EXISTS (
+    SELECT 1 FROM Payments p
+    JOIN Bookings b2 ON p.booking_id = b2.booking_id
+    WHERE b2.event_id = e.event_id AND p.status = 'successful'
+  )
+ORDER BY e.event_date DESC
+LIMIT 300"
+  ],
+  'union_example' => [
+    'title' => 'Set Operation: UNION — Events and Sites list',
+    'sql' => "SELECT name AS item_name, 'Event' AS type FROM Events
+UNION
+SELECT name AS item_name, 'Site' AS type FROM HeritageSites
+ORDER BY item_name
+LIMIT 300"
+  ],
+  'intersect_emulation' => [
+    'title' => 'INTERSECT emulation: Events that have both bookings and payments',
+    'sql' => "SELECT DISTINCT e.event_id, e.name, s.name AS site_name
+FROM Events e
+JOIN HeritageSites s ON e.site_id = s.site_id
+WHERE e.event_id IN (SELECT event_id FROM Bookings)
+  AND e.event_id IN (
+    SELECT b.event_id
+    FROM Bookings b
+    JOIN Payments p ON p.booking_id = b.booking_id AND p.status='successful'
+  )
+ORDER BY e.name
+LIMIT 300"
+  ],
+  'minus_emulation' => [
+    'title' => 'MINUS emulation: Events with bookings but no payments',
+    'sql' => "SELECT DISTINCT e.event_id, e.name, s.name AS site_name
+FROM Events e
+JOIN HeritageSites s ON e.site_id = s.site_id
+WHERE e.event_id IN (SELECT event_id FROM Bookings)
+  AND e.event_id NOT IN (
+    SELECT b.event_id
+    FROM Bookings b
+    JOIN Payments p ON p.booking_id = b.booking_id AND p.status='successful'
+  )
+ORDER BY e.event_date DESC
+LIMIT 300"
+  ],
+  'view_like_revenue_summary' => [
+    'title' => 'View-like derived table: Event revenue summary',
+    'sql' => "SELECT e.event_id, e.name, IFNULL(SUM(p.amount),0) AS total_revenue, COUNT(DISTINCT b.booking_id) AS total_bookings
+FROM Events e
+LEFT JOIN Bookings b ON e.event_id = b.event_id
+LEFT JOIN Payments p ON p.booking_id = b.booking_id AND p.status='successful'
 GROUP BY e.event_id
-ORDER BY total_collected DESC
+ORDER BY total_revenue DESC
+LIMIT 200"
+  ],
+
+  // ---------------- LAB 6: Joins (inner, outer, cross, natural, equi, non-equi, self) ----------------
+  'inner_join_example' => [
+    'title' => 'INNER JOIN: Events with corresponding sites',
+    'sql' => "SELECT e.event_id, e.name AS event_name, s.name AS site_name, e.event_date, e.ticket_price
+FROM Events e
+INNER JOIN HeritageSites s ON e.site_id = s.site_id
+ORDER BY e.event_date DESC
+LIMIT 200"
+  ],
+  'left_join_example' => [
+    'title' => 'LEFT JOIN: All events with optional bookings',
+    'sql' => "SELECT e.event_id, e.name, COUNT(b.booking_id) AS total_bookings
+FROM Events e
+LEFT JOIN Bookings b ON e.event_id = b.event_id
+GROUP BY e.event_id
+ORDER BY total_bookings DESC
+LIMIT 200"
+  ],
+  'right_join_emulation' => [
+    'title' => 'RIGHT JOIN (emulated): Sites with or without events',
+    'sql' => "SELECT s.site_id, s.name AS site_name, e.event_id, e.name AS event_name
+FROM HeritageSites s
+LEFT JOIN Events e ON s.site_id = e.site_id
+ORDER BY s.name
+LIMIT 200"
+  ],
+  'cross_join_example' => [
+    'title' => 'CROSS JOIN: Cartesian small set (top 3 sites × top 3 events)',
+    'sql' => "SELECT s.name AS site_name, e.name AS event_name
+FROM (SELECT site_id, name FROM HeritageSites LIMIT 3) s
+CROSS JOIN (SELECT event_id, name FROM Events LIMIT 3) e"
+  ],
+  'natural_join_emulation' => [
+    'title' => 'NATURAL JOIN style: Explicit same-column join (site_id)',
+    'sql' => "SELECT e.event_id, e.name AS event_name, s.name AS site_name, s.location
+FROM Events e
+JOIN HeritageSites s USING(site_id)
+ORDER BY e.event_id
+LIMIT 200"
+  ],
+  'equi_join_example' => [
+    'title' => 'Equi JOIN: Events + Payments (matching booking.event_id)',
+    'sql' => "SELECT e.event_id, e.name, SUM(p.amount) AS total_amount
+FROM Events e
+JOIN Bookings b ON e.event_id = b.event_id
+JOIN Payments p ON p.booking_id = b.booking_id AND p.status='successful'
+GROUP BY e.event_id
+ORDER BY total_amount DESC
+LIMIT 200"
+  ],
+  'non_equi_join_example' => [
+    'title' => 'Non-equi JOIN: Events priced above average ticket',
+    'sql' => "SELECT e.event_id, e.name, e.ticket_price
+FROM Events e
+JOIN (SELECT AVG(ticket_price) AS avg_price FROM Events) a
+  ON e.ticket_price > a.avg_price
+ORDER BY e.ticket_price DESC
+LIMIT 200"
+  ],
+  'self_join_example' => [
+    'title' => 'SELF JOIN: Events on same date (different sites)',
+    'sql' => "SELECT e1.event_id AS event1, e1.name AS name1, e2.event_id AS event2, e2.name AS name2, e1.event_date
+FROM Events e1
+JOIN Events e2 ON e1.event_date = e2.event_date AND e1.event_id <> e2.event_id
+ORDER BY e1.event_date DESC
 LIMIT 200"
   ],
 ];
@@ -259,12 +410,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['action']) && $_POST[
       </select>
     </div>
     <div class="col-md-2">
-      <label>From Date</label>
+      <label>Date</label>
       <input type="date" name="from_date" class="form-control" value="<?= h($from_date) ?>">
-    </div>
-    <div class="col-md-2">
-      <label>To Date</label>
-      <input type="date" name="to_date" class="form-control" value="<?= h($to_date) ?>">
     </div>
     <div class="col-md-2">
       <label>Ticket (Tk)</label>
@@ -295,52 +442,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['action']) && $_POST[
   </form>
 
   <!-- SQL Runner -->
-  <div class="sql-card row g-2 align-items-center">
-    <div class="col-md-6">
-      <strong>🧾 Safe SQL Runner</strong>
-      <div class="small text-muted">Choose a predefined read-only query to demonstrate joins/aggregates/filters. Results displayed below.</div>
-    </div>
-    <div class="col-md-4">
-      <form method="post" class="d-flex gap-2">
-        <input type="hidden" name="csrf_token" value="<?= h($_SESSION['csrf_token']) ?>">
+  <div class="card mb-3 p-3 shadow-sm">
+      <form method="post" class="row g-2 align-items-center">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
         <input type="hidden" name="action" value="run_query">
-        <select name="query_key" class="form-select" required>
-          <option value="">-- Select query --</option>
-          <?php foreach ($safe_queries as $k => $qi): ?>
-            <option value="<?= h($k) ?>" <?= ($selected_query_key === $k) ? 'selected' : '' ?>><?= h($qi['title']) ?></option>
-          <?php endforeach; ?>
-        </select>
-        <button class="btn btn-primary">Run</button>
+        <div class="col-md-8">
+          <select name="query_key" class="form-select" required>
+            <option value="">-- Select Demo Query --</option>
+            <?php foreach ($safe_queries as $k => $q): ?>
+              <option value="<?= htmlspecialchars($k) ?>" <?= ($selected_query_key === $k) ? 'selected' : '' ?>><?= htmlspecialchars($q['title']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <button class="btn btn-primary w-100">Run Selected Query</button>
+        </div>
       </form>
     </div>
-    <div class="col-md-2 text-end">
-      <a href="event_edit.php" class="btn btn-outline-secondary">Add Event</a>
-    </div>
-  </div>
 
-  <?php if ($query_result !== null): ?>
-    <div class="card mb-3 p-3">
-      <h6>Query Result: <?= h($safe_queries[$selected_query_key]['title'] ?? '') ?> (<?= count($query_result) ?> rows)</h6>
-      <?php if (count($query_result) === 0): ?>
-        <div class="text-muted">No rows returned.</div>
-      <?php else: ?>
-        <div style="overflow:auto; max-height:420px;">
-          <table class="table table-sm table-bordered">
-            <thead class="table-dark">
-              <tr>
-                <?php foreach (array_keys($query_result[0]) as $col): ?><th><?= h($col) ?></th><?php endforeach; ?>
-              </tr>
-            </thead>
-            <tbody>
-              <?php foreach ($query_result as $row): ?>
-                <tr><?php foreach ($row as $cell): ?><td><?= h($cell) ?></td><?php endforeach; ?></tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
-        </div>
-      <?php endif; ?>
-    </div>
-  <?php endif; ?>
+    <?php if ($query_result !== null): ?>
+      <div class="card p-3 mb-4">
+        <h6>Query Result: <?= htmlspecialchars($safe_queries[$selected_query_key]['title'] ?? '') ?> (<?= count($query_result) ?> rows)</h6>
+        <?php if (count($query_result) === 0): ?>
+          <div class="text-muted">No results found.</div>
+        <?php else: ?>
+          <div style="overflow:auto; max-height:480px;">
+            <table class="table table-bordered table-sm">
+              <thead class="table-dark">
+                <tr>
+                  <?php foreach (array_keys($query_result[0]) as $col): ?>
+                    <th><?= htmlspecialchars($col) ?></th>
+                  <?php endforeach; ?>
+                </tr>
+              </thead>
+              <tbody>
+                <?php foreach ($query_result as $row): ?>
+                  <tr>
+                    <?php foreach ($row as $val): ?>
+                      <td><?= htmlspecialchars((string)$val) ?></td>
+                    <?php endforeach; ?>
+                  </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        <?php endif; ?>
+      </div>
+    <?php endif; ?>
 
   <!-- 🧾 SQL Preview (Events listing) -->
   <div class="alert alert-secondary small">

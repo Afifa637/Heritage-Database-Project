@@ -93,82 +93,157 @@ $events = $pdo->query('SELECT event_id, name, site_id, event_date FROM Events OR
 // SAFE SQL RUNNER whitelist (read-only SELECTs)
 // ----------------------
 $safe_queries = [
-    'assignments_recent' => [
-        'title' => 'Recent assignments (last 200)',
-        'sql' => "SELECT a.assign_id, g.full_name AS guide, COALESCE(s.name,e.name) AS target, a.shift_time
-FROM Assignments a
-JOIN Guides g ON a.guide_id=g.guide_id
-LEFT JOIN HeritageSites s ON a.site_id=s.site_id
-LEFT JOIN Events e ON a.event_id=e.event_id
-ORDER BY a.assign_id DESC
-LIMIT 200"
+
+    // ===== LAB 2: DDL/DML Concepts =====
+    'guides_structure' => [
+        'title' => 'Show Guides table structure (DDL info)',
+        'sql' => "SHOW COLUMNS FROM Guides"
     ],
-    'assignments_per_guide' => [
-        'title' => 'Assignments per guide (count)',
-        'sql' => "SELECT g.guide_id, g.full_name, COUNT(a.assign_id) AS assignments_count
-FROM Guides g
-LEFT JOIN Assignments a ON g.guide_id = a.guide_id
-GROUP BY g.guide_id
-ORDER BY assignments_count DESC
-LIMIT 200"
+    'guides_sample_data' => [
+        'title' => 'Sample guides data (DML select)',
+        'sql' => "SELECT guide_id, full_name, language, specialization, salary FROM Guides ORDER BY guide_id LIMIT 100"
     ],
-    'guides_unassigned' => [
-        'title' => 'Guides without any assignment',
-        'sql' => "SELECT g.guide_id, g.full_name, g.language
-FROM Guides g
-LEFT JOIN Assignments a ON g.guide_id = a.guide_id
-WHERE a.assign_id IS NULL
-ORDER BY g.full_name
-LIMIT 200"
+
+    // ===== LAB 3: Filtering, Range, Constraints, Set Membership, Ordering =====
+    'guides_salary_range' => [
+        'title' => 'Guides with salary between 30000 and 60000 (range filter)',
+        'sql' => "SELECT full_name, language, salary
+                  FROM Guides
+                  WHERE salary BETWEEN 30000 AND 60000
+                  ORDER BY salary DESC"
     ],
-    'assignments_by_site' => [
-        'title' => 'Assignments grouped by site (with guide names)',
-        'sql' => "SELECT s.site_id, s.name AS site_name, GROUP_CONCAT(g.full_name SEPARATOR ', ') AS guides
-FROM HeritageSites s
-LEFT JOIN Assignments a ON s.site_id = a.site_id
-LEFT JOIN Guides g ON a.guide_id = g.guide_id
-GROUP BY s.site_id
-ORDER BY s.name
-LIMIT 200"
+    'guides_language_in' => [
+        'title' => 'Guides who speak selected languages (set membership)',
+        'sql' => "SELECT guide_id, full_name, language
+                  FROM Guides
+                  WHERE language IN ('English', 'Bangla', 'French')
+                  ORDER BY language, full_name"
     ],
-    'assignments_for_event' => [
-        'title' => 'Assignments for upcoming events (next 90 days)',
-        'sql' => "SELECT e.event_id, e.name AS event_name, e.event_date, g.full_name AS guide, a.shift_time
-FROM Events e
-LEFT JOIN Assignments a ON a.event_id = e.event_id
-LEFT JOIN Guides g ON a.guide_id = g.guide_id
-WHERE e.event_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 90 DAY)
-ORDER BY e.event_date, e.name
-LIMIT 500"
+    'high_salary_or_special' => [
+        'title' => 'Guides with high salary OR cultural specialization (logical filtering)',
+        'sql' => "SELECT guide_id, full_name, salary, specialization
+                  FROM Guides
+                  WHERE salary > 50000 OR specialization LIKE '%Cultural%'"
     ],
-    'workload_by_guide_shift' => [
-        'title' => 'Workload by guide and shift (count of assignments per shift)',
-        'sql' => "SELECT g.guide_id, g.full_name, a.shift_time, COUNT(*) AS cnt
-FROM Assignments a
-JOIN Guides g ON a.guide_id = g.guide_id
-GROUP BY g.guide_id, a.shift_time
-ORDER BY cnt DESC
-LIMIT 200"
+
+    // ===== LAB 4: Aggregates & Grouping =====
+    'avg_salary_by_lang' => [
+        'title' => 'Average guide salary by language (aggregate, GROUP BY)',
+        'sql' => "SELECT language, COUNT(*) AS guide_count, AVG(salary) AS avg_salary
+                  FROM Guides
+                  GROUP BY language
+                  HAVING COUNT(*) > 1
+                  ORDER BY avg_salary DESC"
     ],
-    'sites_with_no_guides' => [
-        'title' => 'Sites that currently have no assigned guide',
-        'sql' => "SELECT s.site_id, s.name
-FROM HeritageSites s
-LEFT JOIN Assignments a ON s.site_id = a.site_id
-WHERE a.assign_id IS NULL
-ORDER BY s.name
-LIMIT 200"
+    'max_min_salary' => [
+        'title' => 'Highest and lowest guide salary',
+        'sql' => "SELECT MAX(salary) AS max_salary, MIN(salary) AS min_salary FROM Guides"
     ],
-    'guide_languages_counts' => [
-        'title' => 'Guide counts by language',
-        'sql' => "SELECT language, COUNT(*) AS cnt FROM Guides GROUP BY language ORDER BY cnt DESC"
+
+    // ===== LAB 5: Subqueries, Set Operations, Views =====
+    'guides_above_avg' => [
+        'title' => 'Guides earning above average salary (scalar subquery)',
+        'sql' => "SELECT guide_id, full_name, salary
+                  FROM Guides
+                  WHERE salary > (SELECT AVG(salary) FROM Guides)
+                  ORDER BY salary DESC"
+    ],
+    'guides_with_assignments' => [
+        'title' => 'Guides having at least one assignment (EXISTS subquery)',
+        'sql' => "SELECT full_name
+                  FROM Guides g
+                  WHERE EXISTS (SELECT 1 FROM Assignments a WHERE a.guide_id = g.guide_id)"
+    ],
+    'union_language_groups' => [
+        'title' => 'Union of guides speaking Bangla or French',
+        'sql' => "(SELECT guide_id, full_name, language FROM Guides WHERE language = 'Bangla')
+                  UNION
+                  (SELECT guide_id, full_name, language FROM Guides WHERE language = 'French')
+                  ORDER BY full_name"
+    ],
+    'intersect_specialization' => [
+        'title' => 'Guides who are both cultural and history specialists (INTERSECT simulation)',
+        'sql' => "SELECT guide_id, full_name FROM Guides
+                  WHERE specialization LIKE '%Cultural%'
+                  AND guide_id IN (
+                    SELECT guide_id FROM Guides WHERE specialization LIKE '%History%'
+                  )"
+    ],
+    'minus_demo' => [
+        'title' => 'Guides not assigned anywhere (MINUS via NOT IN)',
+        'sql' => "SELECT g.guide_id, g.full_name
+                  FROM Guides g
+                  WHERE g.guide_id NOT IN (SELECT guide_id FROM Assignments)"
+    ],
+    'view_assignments_summary' => [
+        'title' => 'View simulation: total assignments per guide (using GROUP BY)',
+        'sql' => "SELECT g.guide_id, g.full_name, COUNT(a.assign_id) AS total_assignments
+                  FROM Guides g
+                  LEFT JOIN Assignments a ON g.guide_id = a.guide_id
+                  GROUP BY g.guide_id
+                  ORDER BY total_assignments DESC"
+    ],
+
+    // ===== LAB 6: Joins (inner, left, right, cross, natural, self, non-equi) =====
+    'inner_join_assignments' => [
+        'title' => 'Inner join: Guides with their assigned sites/events',
+        'sql' => "SELECT g.full_name, COALESCE(s.name,e.name) AS target_name, a.shift_time
+                  FROM Assignments a
+                  INNER JOIN Guides g ON a.guide_id = g.guide_id
+                  LEFT JOIN HeritageSites s ON a.site_id = s.site_id
+                  LEFT JOIN Events e ON a.event_id = e.event_id
+                  ORDER BY g.full_name"
+    ],
+    'left_join_sites' => [
+        'title' => 'Left join: all sites and their assigned guides (if any)',
+        'sql' => "SELECT s.name AS site_name, g.full_name AS guide_name
+                  FROM HeritageSites s
+                  LEFT JOIN Assignments a ON s.site_id = a.site_id
+                  LEFT JOIN Guides g ON a.guide_id = g.guide_id
+                  ORDER BY s.name"
+    ],
+    'right_join_demo' => [
+        'title' => 'Right join: all guides with assigned site info',
+        'sql' => "SELECT g.full_name, s.name AS site_name
+                  FROM HeritageSites s
+                  RIGHT JOIN Assignments a ON s.site_id = a.site_id
+                  RIGHT JOIN Guides g ON g.guide_id = a.guide_id
+                  ORDER BY g.full_name"
+    ],
+    'cross_join_lang_site' => [
+        'title' => 'Cross join: All possible combinations of guides and sites (limited)',
+        'sql' => "SELECT g.full_name, s.name AS site_name
+                  FROM Guides g
+                  CROSS JOIN HeritageSites s
+                  LIMIT 200"
+    ],
+    'self_join_guides' => [
+        'title' => 'Self join: Guides with same language',
+        'sql' => "SELECT g1.full_name AS guide_1, g2.full_name AS guide_2, g1.language
+                  FROM Guides g1
+                  JOIN Guides g2 ON g1.language = g2.language AND g1.guide_id < g2.guide_id
+                  ORDER BY g1.language"
+    ],
+    'non_equi_join_salary_band' => [
+        'title' => 'Non-equi join: Guides grouped by salary ranges',
+        'sql' => "SELECT g.full_name, g.salary,
+                         CASE
+                             WHEN g.salary < 30000 THEN 'Low'
+                             WHEN g.salary BETWEEN 30000 AND 60000 THEN 'Medium'
+                             ELSE 'High'
+                         END AS salary_band
+                  FROM Guides g
+                  ORDER BY salary_band, g.salary DESC"
     ],
 ];
 
-// Run SQL Runner if requested
+// ----------------------
+// SQL Runner execution (read-only safe)
+// ----------------------
 $query_result = null;
 $selected_query_key = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['action']) && $_POST['action'] === 'run_query')) {
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'run_query') {
     $csrf = $_POST['csrf_token'] ?? '';
     if (!hash_equals($_SESSION['csrf_token'], $csrf)) {
         $errors[] = 'Invalid CSRF for SQL Runner';
@@ -181,7 +256,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['action']) && $_POST[
             try {
                 $stmtQ = $pdo->query($safe_queries[$qkey]['sql']);
                 $query_result = $stmtQ->fetchAll(PDO::FETCH_ASSOC);
-                $messages[] = 'Query executed.';
+                $messages[] = 'Query executed successfully.';
             } catch (Exception $e) {
                 $errors[] = 'Query failed: ' . $e->getMessage();
             }
@@ -273,45 +348,53 @@ $event_filter = (int)($_GET['event_id'] ?? 0);
   </div>
 
   <!-- SQL Runner -->
-  <div class="sql-card">
-    <form method="post" class="row g-2 align-items-center">
-      <input type="hidden" name="csrf_token" value="<?= h($_SESSION['csrf_token']) ?>">
-      <input type="hidden" name="action" value="run_query">
-      <div class="col-md-6">
-        <strong>🧾 Safe SQL Runner</strong>
-        <div class="small text-muted">Choose a predefined read-only query to demonstrate SQL patterns (joins, group by, aggregates).</div>
-      </div>
-      <div class="col-md-4">
-        <select name="query_key" class="form-select" required>
-          <option value="">-- Select query --</option>
-          <?php foreach ($safe_queries as $k=>$qi): ?>
-            <option value="<?= h($k) ?>" <?= $selected_query_key === $k ? 'selected' : '' ?>><?= h($qi['title']) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div class="col-md-2 text-end"><button class="btn btn-primary">Run</button></div>
-    </form>
-  </div>
-
-  <?php if ($query_result !== null): ?>
-    <div class="card mb-3 p-3">
-      <h6>Query Result: <?= h($safe_queries[$selected_query_key]['title'] ?? '') ?> (<?= count($query_result) ?> rows)</h6>
-      <?php if (count($query_result) === 0): ?>
-        <div class="text-muted">No rows returned</div>
-      <?php else: ?>
-        <div style="overflow:auto; max-height:420px;">
-          <table class="table table-sm table-bordered">
-            <thead class="table-dark"><tr><?php foreach (array_keys($query_result[0]) as $col): ?><th><?= h($col) ?></th><?php endforeach; ?></tr></thead>
-            <tbody>
-              <?php foreach ($query_result as $r): ?>
-                <tr><?php foreach ($r as $c): ?><td><?= h($c) ?></td><?php endforeach; ?></tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
+  <div class="card mb-3 p-3 shadow-sm">
+      <form method="post" class="row g-2 align-items-center">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+        <input type="hidden" name="action" value="run_query">
+        <div class="col-md-8">
+          <select name="query_key" class="form-select" required>
+            <option value="">-- Select Demo Query --</option>
+            <?php foreach ($safe_queries as $k => $q): ?>
+              <option value="<?= htmlspecialchars($k) ?>" <?= ($selected_query_key === $k) ? 'selected' : '' ?>><?= htmlspecialchars($q['title']) ?></option>
+            <?php endforeach; ?>
+          </select>
         </div>
-      <?php endif; ?>
+        <div class="col-md-4">
+          <button class="btn btn-primary w-100">Run Selected Query</button>
+        </div>
+      </form>
     </div>
-  <?php endif; ?>
+
+    <?php if ($query_result !== null): ?>
+      <div class="card p-3 mb-4">
+        <h6>Query Result: <?= htmlspecialchars($safe_queries[$selected_query_key]['title'] ?? '') ?> (<?= count($query_result) ?> rows)</h6>
+        <?php if (count($query_result) === 0): ?>
+          <div class="text-muted">No results found.</div>
+        <?php else: ?>
+          <div style="overflow:auto; max-height:480px;">
+            <table class="table table-bordered table-sm">
+              <thead class="table-dark">
+                <tr>
+                  <?php foreach (array_keys($query_result[0]) as $col): ?>
+                    <th><?= htmlspecialchars($col) ?></th>
+                  <?php endforeach; ?>
+                </tr>
+              </thead>
+              <tbody>
+                <?php foreach ($query_result as $row): ?>
+                  <tr>
+                    <?php foreach ($row as $val): ?>
+                      <td><?= htmlspecialchars((string)$val) ?></td>
+                    <?php endforeach; ?>
+                  </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        <?php endif; ?>
+      </div>
+    <?php endif; ?>
 
   <!-- Filter Panel -->
   <form method="get" class="panel row g-3 align-items-end mb-3">

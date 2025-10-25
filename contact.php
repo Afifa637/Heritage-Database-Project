@@ -1,6 +1,6 @@
 <?php
-// contact.php
 session_start();
+include __DIR__ . '/includes/headerFooter.php';
 require_once __DIR__ . '/includes/db_connect.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -19,35 +19,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 ?>
-<!doctype html>
-<html>
+<div class="container py-4">
+    <?php if (!empty($_SESSION['flash_success'])): ?>
+        <div class="alert alert-success"><?= htmlspecialchars($_SESSION['flash_success']); unset($_SESSION['flash_success']); ?></div>
+    <?php endif; ?>
+    <?php if (!empty($_SESSION['flash_error'])): ?>
+        <div class="alert alert-danger"><?= htmlspecialchars($_SESSION['flash_error']); unset($_SESSION['flash_error']); ?></div>
+    <?php endif; ?>
 
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Contact</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-
-<body>
-    <nav class="navbar navbar-dark bg-dark">
-        <div class="container"><a class="navbar-brand" href="/">Heritage Explorer</a></div>
-    </nav>
-    <div class="container py-4">
-        <?php if (!empty($_SESSION['flash_success'])): ?>
-            <div class="alert alert-success"><?php echo htmlspecialchars($_SESSION['flash_success']);
-                                                unset($_SESSION['flash_success']); ?></div>
-        <?php endif; ?>
-        <div class="card p-3">
-            <h4>Contact Us</h4>
-            <form method="post">
-                <div class="mb-2"><input class="form-control" name="name" placeholder="Your name"></div>
-                <div class="mb-2"><input class="form-control" name="email" placeholder="Your email" required></div>
-                <div class="mb-2"><textarea class="form-control" name="message" rows="5" placeholder="Message" required></textarea></div>
-                <div><button class="btn btn-primary">Send</button></div>
-            </form>
-        </div>
+    <div class="card shadow-sm p-4 mb-4" style="border-radius:10px;">
+        <h4>📬 Contact Us</h4>
+        <form method="post" class="mt-3">
+            <div class="mb-3"><input class="form-control" name="name" placeholder="Your name"></div>
+            <div class="mb-3"><input class="form-control" name="email" placeholder="Your email" required></div>
+            <div class="mb-3"><textarea class="form-control" name="message" rows="5" placeholder="Message" required></textarea></div>
+            <div><button class="btn btn-primary">Send Message</button></div>
+        </form>
     </div>
-</body>
+</div>
 
+<footer class="bg-dark text-white text-center py-3 mt-4">
+  <div class="container position-relative">
+    <p class="mb-0">&copy; <?= date('Y') ?> Heritage Explorer</p>
+    <a href="/Heritage-Database-Project/admin/login.php" 
+       class="text-white-50 small position-absolute bottom-0 end-0 me-2 mb-1"
+       style="font-size: 0.75rem; text-decoration: none;">
+       Admin Login
+    </a>
+  </div>
+</footer>
+</body>
 </html>

@@ -78,10 +78,10 @@ ORDER BY total DESC
   $avgGuideSalary = $pdo->query("SELECT ROUND(AVG(salary),2) AS avg_salary FROM Guides")->fetchColumn();
 
   $unassignedGuides = $pdo->query("
-SELECT full_name FROM Guides 
-LEFT JOIN Assignments ON Guides.guide_id = Assignments.guide_id 
-WHERE Assignments.guide_id IS NULL
-")->fetchAll(PDO::FETCH_COLUMN);
+  SELECT full_name FROM Guides 
+  LEFT JOIN Assignments ON Guides.guide_id = Assignments.guide_id 
+  WHERE Assignments.guide_id IS NULL
+  ")->fetchAll(PDO::FETCH_COLUMN);  
 
   $topSites = $pdo->query("
 SELECT h.name, COUNT(b.booking_id) AS total_bookings 
@@ -131,8 +131,6 @@ LIMIT 5
   $total_sites = $total_visitors = $total_bookings = 0;
   $avg_rating_overall = $avg_ticket_price = $total_revenue = 0;
 }
-
-// ========== CHART DATA & DETAILED QUERIES ==========
 
 /*
  * Bookings by month (chart) - respect timeRange when not 'ytd'
@@ -252,10 +250,10 @@ try {
 
 try {
   $q = "
-      SELECT g.guide_id, g.name, g.language, g.specialization, g.salary,
-             COUNT(a.assign_id) AS assignments_count
-      FROM Guides g
-      LEFT JOIN Assignments a ON g.guide_id = a.guide_id
+    SELECT g.guide_id, g.full_name AS name, g.language, g.specialization, g.salary,
+           COUNT(a.assign_id) AS assignments_count
+    FROM Guides g
+    LEFT JOIN Assignments a ON g.guide_id = a.guide_id
       WHERE 1
     ";
   $params = [];
@@ -312,59 +310,6 @@ try {
   $bookings_by_nationality = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $ex) {
   $bookings_by_nationality = [];
-}
-
-/*
- * Upcoming events
- */
-try {
-  $stmt = $pdo->prepare("
-        SELECT e.event_id, e.name, e.event_date, e.event_time, hs.name AS site_name, e.capacity
-        FROM Events e
-        LEFT JOIN HeritageSites hs ON e.site_id = hs.site_id
-        WHERE e.event_date >= CURDATE()
-        ORDER BY e.event_date ASC, e.event_time ASC
-        LIMIT 10
-    ");
-  $stmt->execute();
-  $upcoming_events = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $ex) {
-  $upcoming_events = [];
-}
-
-/*
- * Refunds & failed payments in last 6 months
- */
-try {
-  $stmt = $pdo->prepare("
-      SELECT p.status, COUNT(*) AS cnt, IFNULL(SUM(p.amount),0) AS total
-      FROM Payments p
-      WHERE p.paid_at > DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
-        AND p.status IN ('failed','refunded')
-      GROUP BY p.status
-    ");
-  $stmt->execute();
-  $recent_problem_payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $ex) {
-  $recent_problem_payments = [];
-}
-// Prepare lists for filter selects (methods, guides, sites)
-try {
-  $methods = $pdo->query("SELECT DISTINCT method FROM Payments ORDER BY method")->fetchAll(PDO::FETCH_COLUMN);
-} catch (Exception $ex) {
-  $methods = [];
-}
-
-try {
-  $guides = $pdo->query("SELECT guide_id, name FROM Guides ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $ex) {
-  $guides = [];
-}
-
-try {
-  $sites = $pdo->query("SELECT site_id, name FROM HeritageSites ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $ex) {
-  $sites = [];
 }
 
 // ========== Render HTML ==========
@@ -433,12 +378,6 @@ try {
         <div class="card p-3">
           <small class="small-stat">Total Revenue (successful)</small>
           <div class="h4"><?= e(number_format($total_revenue, 2)) ?> BDT</div>
-          <div class="d-grid gap-1 mt-2">
-            <a class="btn btn-sm btn-outline-primary" href="export_csv.php?type=sites">Export Sites</a>
-            <a class="btn btn-sm btn-outline-primary" href="export_csv.php?type=bookings">Export Bookings</a>
-            <a class="btn btn-sm btn-outline-primary" href="export_csv.php?type=payments">Export Payments</a>
-            <a class="btn btn-sm btn-outline-primary" href="export_csv.php?type=guides">Export Guides</a>
-          </div>
         </div>
       </div>
     </div>
@@ -547,151 +486,14 @@ try {
           <hr>
           <h6>Unassigned Guides</h6>
           <ul class="list-group mt-2">
-            <?php foreach ($unassignedGuides as $u): ?>
-              <li class="list-group-item"><?= e($u['name']) ?></li>
-            <?php endforeach; ?>
+          <?php foreach ($unassignedGuides as $u): ?>
+  <li class="list-group-item"><?= e($u) ?></li>
+<?php endforeach; ?>
             <?php if (empty($unassignedGuides)): ?><li class="list-group-item">None</li><?php endif; ?>
           </ul>
         </div>
       </div>
     </div>
-
-
-    <!-- FILTER FORM -->
-    <div class="card p-3 mb-4">
-      <h5 class="mb-3">Filter Analytics</h5>
-      <form method="GET" class="row g-3">
-        <div class="col-md-3">
-          <label class="form-label">Payment Method</label>
-          <select name="method" class="form-select">
-            <option value="">All</option>
-            <?php foreach ($methods as $m): ?>
-              <option value="<?= e($m) ?>" <?= ($methodFilter == $m ? 'selected' : '') ?>><?= e($m) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-
-        <div class="col-md-3">
-          <label class="form-label">Guide</label>
-          <select name="guide_id" class="form-select">
-            <option value="">All</option>
-            <?php foreach ($guides as $g): ?>
-              <option value="<?= e($g['guide_id']) ?>" <?= ($guideFilter == $g['guide_id'] ? 'selected' : '') ?>><?= e($g['name']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-
-        <div class="col-md-3">
-          <label class="form-label">Site</label>
-          <select name="site_id" class="form-select">
-            <option value="">All</option>
-            <?php foreach ($sites as $s): ?>
-              <option value="<?= e($s['site_id']) ?>" <?= ($siteFilter == $s['site_id'] ? 'selected' : '') ?>><?= e($s['name']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-
-        <div class="col-md-2">
-          <label class="form-label">Review Date</label>
-          <input type="date" name="date" class="form-control" value="<?= e($dateFilter) ?>">
-        </div>
-
-        <div class="col-md-1">
-          <label class="form-label">Range</label>
-          <select name="range" class="form-select">
-            <option value="3m" <?= ($timeRange === '3m' ? 'selected' : '') ?>>3m</option>
-            <option value="6m" <?= ($timeRange === '6m' ? 'selected' : '') ?>>6m</option>
-            <option value="12m" <?= ($timeRange === '12m' ? 'selected' : '') ?>>12m</option>
-            <option value="ytd" <?= ($timeRange === 'ytd' ? 'selected' : '') ?>>YTD</option>
-          </select>
-        </div>
-
-        <div class="col-12 text-end">
-          <button type="submit" class="btn btn-primary px-4">Apply</button>
-          <a href="dashboard.php" class="btn btn-secondary px-4">Reset</a>
-        </div>
-      </form>
-    </div>
-
-    <!-- Analytics Section -->
-    <div class="container my-5">
-      <h3>📊 Lab Query Showcases</h3>
-
-      <div class="row">
-        <div class="col-md-4">
-          <div class="site-card">
-            <h5>💰 Revenue by Payment Method</h5>
-            <ul><?php foreach ($totalRevenue as $r): ?><li><?= $r['method'] ?> — <?= number_format($r['total'], 2) ?></li><?php endforeach; ?></ul>
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="site-card">
-            <h5>👨‍🏫 Avg Guide Salary</h5>
-            <p><?= number_format($avgGuideSalary, 2) ?> BDT</p>
-            <h5>Unassigned Guides</h5>
-            <ul><?php foreach ($unassignedGuides as $g): ?><li><?= htmlspecialchars($g) ?></li><?php endforeach; ?></ul>
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="site-card">
-            <h5>🏆 Top 3 Booked Sites</h5>
-            <ul><?php foreach ($topSites as $s): ?><li><?= htmlspecialchars($s['name']) ?> — <?= $s['total_bookings'] ?> bookings</li><?php endforeach; ?></ul>
-          </div>
-        </div>
-      </div>
-
-      <div class="site-card mt-4">
-        <h5>⭐ Recent Reviews (JOIN Example)</h5>
-        <?php foreach ($reviewsData as $r): ?>
-          <p><strong><?= htmlspecialchars($r['visitor']) ?></strong> rated <em><?= htmlspecialchars($r['site']) ?></em> → <?= htmlspecialchars($r['rating']) ?>/5<br>
-            "<?= htmlspecialchars($r['comment']) ?>"</p>
-          <hr>
-        <?php endforeach; ?>
-      </div>
-
-      <div class="site-card mt-4">
-        <h5>🧩 Subqueries & Joins</h5>
-        <p><strong>Sites With Events:</strong> <?= implode(', ', $sitesWithEvents) ?: 'None' ?></p>
-        <p><strong>Guides Without Site:</strong> <?= implode(', ', $guidesWithoutSite) ?: 'None' ?></p>
-        <p><strong>Visitors Booked But Not Reviewed:</strong> <?= implode(', ', $visitorsBookedNotReviewed) ?: 'None' ?></p>
-        <h6>Bookings + Payments (Join Example)</h6>
-        <ul><?php foreach ($bookingsWithPayments as $b): ?><li>#<?= $b['booking_id'] ?> - <?= $b['full_name'] ?> paid <?= number_format($b['amount'], 2) ?> via <?= $b['method'] ?> (<?= $b['status'] ?>)</li><?php endforeach; ?></ul>
-      </div>
-    </div>
-
-    <!-- UPCOMING EVENTS -->
-    <div class="card p-3 mb-5">
-      <h5>Upcoming Events</h5>
-      <div class="table-responsive">
-        <table class="table table-sm table-striped">
-          <thead>
-            <tr>
-              <th>Event</th>
-              <th>Site</th>
-              <th>Date</th>
-              <th>Time</th>
-              <th>Capacity</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php foreach ($upcoming_events as $ev): ?>
-              <tr>
-                <td><?= e($ev['name']) ?></td>
-                <td><?= e($ev['site_name']) ?></td>
-                <td><?= e($ev['event_date']) ?></td>
-                <td><?= e($ev['event_time']) ?></td>
-                <td><?= e($ev['capacity']) ?></td>
-              </tr>
-            <?php endforeach; ?>
-            <?php if (empty($upcoming_events)): ?><tr>
-                <td colspan="5">No upcoming events</td>
-              </tr><?php endif; ?>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-  </div>
 
   <script>
     // Data prepared server-side

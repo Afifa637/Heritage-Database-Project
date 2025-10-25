@@ -40,15 +40,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Admin Login</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { 
+            background-color: #f9f6f2; 
+            font-family: 'Poppins', sans-serif; 
+        }
+        .card { 
+            border-radius: 10px; 
+            background-color: #fff8f0; 
+        }
+        .btn-back {
+            background-color: #2e1f0f;
+            color: #fdf6e3;
+            border: none;
+        }
+        .btn-back:hover {
+            background-color: #4b2e17;
+            color: #fff;
+        }
+    </style>
 </head>
-<body class="bg-light">
+<body>
 <div class="container py-5">
     <div class="row justify-content-center">
         <div class="col-md-5">
             <div class="card p-4 shadow-sm">
                 <h4 class="mb-3 text-center">Admin Login</h4>
                 <?php if ($error): ?>
-                    <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
+                    <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
                 <?php endif; ?>
                 <form method="post">
                     <div class="mb-3">
@@ -62,6 +81,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="mt-3 small text-muted text-center">
                     Default admin: <strong>admin@gmail.com</strong><br>
                     Password: <strong>admin123</strong>
+                </div>
+                <div class="mt-3 text-center">
+                    <a href="/Heritage-Database-Project/index.php" class="btn btn-back w-50">← Back to Main Site</a>
                 </div>
             </div>
         </div>

@@ -1,5 +1,6 @@
 <?php
 session_start();
+include __DIR__ . '/includes/headerFooter.php';
 require_once __DIR__ . '/includes/db_connect.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

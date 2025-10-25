@@ -308,27 +308,42 @@ INSERT INTO Guides (name, language, specialization, salary) VALUES
 (19, 'Nadia Rahman', 'Bangla, Chakma', 'Tribal Culture', 24000.00),
 (20, 'Victor Silva', 'Portuguese, English', 'Colonial Trade', 34000.00);
 -- Assignments
+-- Correct and realistic Assignments data
 INSERT INTO Assignments (guide_id, site_id, event_id, shift_time) VALUES
+-- === Site assignments (each site gets at least one guide) ===
 (1, 1, NULL, 'Morning'),
-(2, NULL, 2, 'Evening'),
-(3, 4, NULL, 'Afternoon'),
-(4, 4, 1, NULL, 'Morning'),
-(5, 5, NULL, 6, 'Evening'),
-(6, 6, 3, NULL, 'Afternoon'),
-(7, 7, NULL, 8, 'Morning'),
-(8, 8, 4, NULL, 'Afternoon'),
-(9, 9, NULL, 10, 'Evening'),
-(10, 10, 5, NULL, 'Morning'),
-(11, 11, NULL, 11, 'Afternoon'),
-(12, 12, 7, NULL, 'Morning'),
-(13, 13, NULL, 13, 'Evening'),
-(14, 14, 14, NULL, 'Afternoon'),
-(15, 15, NULL, 15, 'Morning'),
-(16, 16, 16, NULL, 'Morning'),
-(17, 17, NULL, 18, 'Evening'),
-(18, 18, 19, NULL, 'Afternoon'),
-(19, 19, NULL, 20, 'Morning'),
-(20, 20, 2, NULL, 'Evening');
+(2, 1, NULL, 'Evening'),
+(3, 2, NULL, 'Afternoon'),
+(4, 2, NULL, 'Morning'),
+(5, 3, NULL, 'Morning'),
+(6, 3, NULL, 'Evening'),
+(7, 4, NULL, 'Morning'),
+(8, 5, NULL, 'Afternoon'),
+(9, 5, NULL, 'Evening'),
+(10, 6, NULL, 'Morning'),
+(11, 7, NULL, 'Afternoon'),
+(12, 8, NULL, 'Morning'),
+(13, 8, NULL, 'Evening'),
+(14, 9, NULL, 'Morning'),
+(15, 9, NULL, 'Afternoon'),
+(16, 10, NULL, 'Evening'),
+(17, 11, NULL, 'Morning'),
+(18, 12, NULL, 'Afternoon'),
+(19, 13, NULL, 'Morning'),
+(20, 14, NULL, 'Evening'),
+
+-- === Event assignments (only some events have guides) ===
+(1, NULL, 1, 'Morning'),
+(3, NULL, 2, 'Afternoon'),
+(6, NULL, 3, 'Evening'),
+(8, NULL, 4, 'Morning'),
+(10, NULL, 5, 'Afternoon'),
+(12, NULL, 6, 'Evening'),
+(14, NULL, 8, 'Morning'),
+(16, NULL, 10, 'Afternoon'),
+(18, NULL, 12, 'Evening'),
+(20, NULL, 15, 'Morning');
+
 -- Reviews
 INSERT INTO Reviews (visitor_id, site_id, event_id, rating, comment) VALUES
 (1, 1, NULL, 5, 'Beautiful Mughal fort!'),

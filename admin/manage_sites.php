@@ -145,56 +145,238 @@ $filteredStats = $filteredStatsStmt->fetch(PDO::FETCH_ASSOC);
 
 // ----------------------
 // SAFE SQL RUNNER whitelist (read-only SELECTs)
+// Covers Lab 2..Lab 6 topics with practical examples
 // ----------------------
 $safe_queries = [
+    // ----- LAB 2: DDL / DML inspection (read-only) -----
+    'ddl_tables_columns' => [
+        'title' => 'DDL: Tables & columns (information_schema)',
+        'sql' => "SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+ORDER BY TABLE_NAME, ORDINAL_POSITION
+LIMIT 500"
+    ],
+    'ddl_table_list' => [
+        'title' => 'DDL: List of tables (information_schema)',
+        'sql' => "SELECT TABLE_NAME, TABLE_ROWS, CREATE_TIME
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = DATABASE()
+ORDER BY TABLE_NAME
+LIMIT 200"
+    ],
+    'view_definitions' => [
+        'title' => 'DDL: View definitions (if any)',
+        'sql' => "SELECT TABLE_NAME AS view_name, VIEW_DEFINITION
+FROM information_schema.VIEWS
+WHERE TABLE_SCHEMA = DATABASE()
+LIMIT 200"
+    ],
+
+    // ----- LAB 3: Filtering, Constraints, Range Search, Set Membership, Ordering -----
+    'filter_by_type_and_location' => [
+        'title' => 'Filter: Sites by type and location (example)',
+        'sql' => "SELECT site_id, name, location, type, ticket_price
+FROM HeritageSites
+WHERE type = 'Mosque' AND location LIKE '%Bagerhat%'
+ORDER BY ticket_price DESC
+LIMIT 200"
+    ],
+    'range_search_price' => [
+        'title' => 'Range search: Ticket price between min and max',
+        'sql' => "SELECT site_id, name, ticket_price
+FROM HeritageSites
+WHERE ticket_price BETWEEN 30 AND 120
+ORDER BY ticket_price ASC
+LIMIT 200"
+    ],
+    'set_membership_in' => [
+        'title' => 'Set membership: Sites of selected types (IN)',
+        'sql' => "SELECT site_id, name, type
+FROM HeritageSites
+WHERE type IN ('Museum','Monastery','Ancient City')
+ORDER BY type, name
+LIMIT 200"
+    ],
+    'ordering_by_multiple_columns' => [
+        'title' => 'Ordering: by UNESCO status then ticket price',
+        'sql' => "SELECT site_id, name, unesco_status, ticket_price
+FROM HeritageSites
+ORDER BY FIELD(unesco_status,'World Heritage','Tentative','None'), ticket_price DESC
+LIMIT 200"
+    ],
+    'constraint_checks_bookings' => [
+        'title' => 'Constraint check: Bookings with both site_id and event_id (should be prevented)',
+        'sql' => "SELECT booking_id, visitor_id, site_id, event_id
+FROM Bookings
+WHERE site_id IS NOT NULL AND event_id IS NOT NULL
+LIMIT 100"
+    ],
+
+    // ----- LAB 4: Aggregates, GROUP BY, HAVING -----
     'sites_by_unesco' => [
-        'title' => 'Sites grouped by UNESCO status',
+        'title' => 'Sites grouped by UNESCO status (COUNT/ORDER)',
         'sql' => "SELECT unesco_status, COUNT(*) AS sites_count
 FROM HeritageSites
 GROUP BY unesco_status
+HAVING sites_count > 0
 ORDER BY sites_count DESC"
     ],
-    'most_expensive_sites' => [
-        'title' => 'Top 100 most expensive sites by ticket price',
-        'sql' => "SELECT site_id, name, location, ticket_price
+    'avg_price_by_location' => [
+        'title' => 'Aggregates: Avg ticket price by location',
+        'sql' => "SELECT location, ROUND(AVG(ticket_price),2) AS avg_price, COUNT(*) AS sites_count
 FROM HeritageSites
-ORDER BY ticket_price DESC
-LIMIT 100"
+GROUP BY location
+HAVING sites_count >= 1
+ORDER BY avg_price DESC
+LIMIT 200"
     ],
-    'sites_with_event_counts' => [
-        'title' => 'Sites with number of upcoming events',
-        'sql' => "SELECT s.site_id, s.name AS site_name, COUNT(e.event_id) AS upcoming_events
+    'revenue_by_method_having' => [
+        'title' => 'Aggregates+HAVING: Revenue by method (show only >0)',
+        'sql' => "SELECT method, ROUND(SUM(amount),2) AS total_revenue, COUNT(*) AS payments_count
+FROM Payments
+WHERE status IN ('successful','success')
+GROUP BY method
+HAVING total_revenue > 0
+ORDER BY total_revenue DESC"
+    ],
+
+    // ----- LAB 5: Subqueries & Set Operations (UNION, INTERSECT emulation, EXCEPT emulation), Views -----
+    'sites_with_events_subquery' => [
+        'title' => 'Subquery: Sites that have at least one future event',
+        'sql' => "SELECT name, site_id
+FROM HeritageSites
+WHERE site_id IN (SELECT DISTINCT site_id FROM Events WHERE event_date >= CURDATE())
+ORDER BY name
+LIMIT 300"
+    ],
+    'sites_with_bookings_but_no_reviews' => [
+        'title' => 'Subquery: Sites booked but not reviewed (EXISTS / NOT EXISTS)',
+        'sql' => "SELECT DISTINCT hs.site_id, hs.name
+FROM HeritageSites hs
+WHERE EXISTS (SELECT 1 FROM Bookings b WHERE b.site_id = hs.site_id)
+  AND NOT EXISTS (SELECT 1 FROM Reviews r WHERE r.site_id = hs.site_id)
+ORDER BY hs.name
+LIMIT 300"
+    ],
+    'union_example_sites_and_museums' => [
+        'title' => 'Set op (UNION): Site names (Museums) + Event names (as items) — union example',
+        'sql' => "SELECT name AS title, 'site' AS type FROM HeritageSites WHERE type = 'Museum'
+UNION
+SELECT name AS title, 'event' AS type FROM Events
+ORDER BY title
+LIMIT 500"
+    ],
+    'intersect_emulation' => [
+        'title' => 'Intersect emulation: Sites that appear in both Bookings and Reviews',
+        'sql' => "SELECT DISTINCT s.site_id, s.name
+FROM HeritageSites s
+JOIN Bookings b ON s.site_id = b.site_id
+JOIN Reviews r ON s.site_id = r.site_id
+ORDER BY s.name
+LIMIT 500"
+    ],
+    'except_emulation' => [
+        'title' => 'Except emulation: Sites with bookings but not with successful payments (LEFT JOIN/NULL)',
+        'sql' => "SELECT DISTINCT s.site_id, s.name
+FROM HeritageSites s
+JOIN Bookings b ON s.site_id = b.site_id
+LEFT JOIN Payments p ON b.booking_id = p.booking_id AND p.status IN ('successful','success')
+WHERE p.payment_id IS NULL
+ORDER BY s.name
+LIMIT 500"
+    ],
+    'views_example' => [
+        'title' => 'View-like: top revenue sites (derived view SELECT)',
+        'sql' => "SELECT s.site_id, s.name, ROUND(IFNULL(SUM(p.amount),0),2) AS revenue
+FROM HeritageSites s
+LEFT JOIN Bookings b ON b.site_id = s.site_id
+LEFT JOIN Payments p ON p.booking_id = b.booking_id AND p.status IN ('successful','success')
+GROUP BY s.site_id
+ORDER BY revenue DESC
+LIMIT 200"
+    ],
+
+    // ----- LAB 6: JOINS — inner, left, right (emulated), cross, natural, self-join, non-equi, equi join -----
+    'inner_join_bookings_payments' => [
+        'title' => 'Inner JOIN: Bookings with successful payments (joined details)',
+        'sql' => "SELECT b.booking_id, v.full_name AS visitor, hs.name AS site, p.amount, p.method, p.status
+FROM Bookings b
+INNER JOIN Visitors v ON b.visitor_id = v.visitor_id
+INNER JOIN Payments p ON b.booking_id = p.booking_id AND p.status IN ('successful','success')
+LEFT JOIN HeritageSites hs ON b.site_id = hs.site_id
+ORDER BY b.booking_date DESC
+LIMIT 200"
+    ],
+    'left_join_sites_events' => [
+        'title' => 'LEFT JOIN: sites and (optional) upcoming events count',
+        'sql' => "SELECT s.site_id, s.name, COUNT(e.event_id) AS upcoming_events
 FROM HeritageSites s
 LEFT JOIN Events e ON e.site_id = s.site_id AND e.event_date >= CURDATE()
 GROUP BY s.site_id
 ORDER BY upcoming_events DESC
-LIMIT 500"
+LIMIT 200"
     ],
-    'sites_without_events' => [
-        'title' => 'Sites having no scheduled events',
-        'sql' => "SELECT s.site_id, s.name, s.location
-FROM HeritageSites s
-LEFT JOIN Events e ON e.site_id = s.site_id
-WHERE e.event_id IS NULL
-ORDER BY s.name
-LIMIT 500"
+    'right_join_emulation' => [
+        'title' => 'Right join emulation: events with site info (emulate RIGHT JOIN via LEFT JOIN swap)',
+        'sql' => "SELECT e.event_id, e.name AS event_name, COALESCE(s.name,'(site removed)') AS site_name, e.event_date
+FROM Events e
+LEFT JOIN HeritageSites s ON e.site_id = s.site_id
+ORDER BY e.event_date DESC
+LIMIT 200"
     ],
+    'cross_join_example' => [
+        'title' => 'CROSS JOIN example: pair top-5 guides x top-5 sites (cartesian small set)',
+        'sql' => "SELECT g.full_name AS guide, s.name AS site
+FROM (SELECT guide_id, full_name FROM Guides ORDER BY guide_id LIMIT 5) g
+CROSS JOIN (SELECT site_id, name FROM HeritageSites ORDER BY site_id LIMIT 5) s
+LIMIT 200"
+    ],
+    'natural_join_example' => [
+        'title' => 'NATURAL JOIN example (if column names match) — safe demo with alias',
+        'sql' => "SELECT a.assign_id, g.full_name AS guide_name, COALESCE(h.name,'(site)') AS site_name, a.shift_time
+FROM Assignments a
+JOIN Guides g ON a.guide_id = g.guide_id
+LEFT JOIN HeritageSites h ON a.site_id = h.site_id
+ORDER BY a.assign_id
+LIMIT 200"
+    ],
+    'self_join_guides' => [
+        'title' => 'SELF JOIN: guides paired by same specialization (mentorship pairs)',
+        'sql' => "SELECT g1.guide_id AS mentor_id, g1.full_name AS mentor, g2.guide_id AS mentee_id, g2.full_name AS mentee, g1.specialization
+FROM Guides g1
+JOIN Guides g2 ON g1.specialization = g2.specialization AND g1.guide_id <> g2.guide_id
+ORDER BY g1.specialization, g1.full_name
+LIMIT 200"
+    ],
+    'non_equi_join_example' => [
+        'title' => 'Non-equi join: guides whose salary is > average salary (join with aggregate subquery)',
+        'sql' => "SELECT g.guide_id, g.full_name, g.salary
+FROM Guides g
+JOIN (SELECT ROUND(AVG(salary),2) AS avg_salary FROM Guides) a
+  ON g.salary > a.avg_salary
+ORDER BY g.salary DESC
+LIMIT 200"
+    ],
+    'equi_join_example_assignments' => [
+        'title' => 'Equi-join: assignments with guide & site names (typical JOIN on equality)',
+        'sql' => "SELECT a.assign_id, g.full_name AS guide, COALESCE(s.name,'(site removed)') AS site, a.shift_time
+FROM Assignments a
+JOIN Guides g ON a.guide_id = g.guide_id
+LEFT JOIN HeritageSites s ON a.site_id = s.site_id
+ORDER BY a.assign_id
+LIMIT 400"
+    ],
+
+    // ----- Practical / mixed queries useful for labs -----
     'top_sites_by_bookings' => [
         'title' => 'Top sites by successful payments (revenue)',
         'sql' => "SELECT s.site_id, s.name, COALESCE(SUM(p.amount),0) AS revenue, COUNT(DISTINCT b.booking_id) AS bookings
 FROM HeritageSites s
 LEFT JOIN Bookings b ON b.site_id = s.site_id
-LEFT JOIN Payments p ON p.booking_id = b.booking_id AND p.status = 'successful'
+LEFT JOIN Payments p ON p.booking_id = b.booking_id AND p.status IN ('successful','success')
 GROUP BY s.site_id
 ORDER BY revenue DESC
-LIMIT 200"
-    ],
-    'avg_ticket_by_location' => [
-        'title' => 'Average ticket price by location',
-        'sql' => "SELECT location, AVG(ticket_price) AS avg_price, COUNT(*) AS sites_count
-FROM HeritageSites
-GROUP BY location
-ORDER BY avg_price DESC
 LIMIT 200"
     ],
     'recent_sites' => [
@@ -209,6 +391,24 @@ LIMIT 200"
         'sql' => "SELECT site_id, name, LEFT(description,200) as excerpt
 FROM HeritageSites
 WHERE MATCH(description) AGAINST ('+museum' IN BOOLEAN MODE)
+LIMIT 200"
+    ],
+    'bookings_by_nationality' => [
+        'title' => 'Bookings by visitor nationality (grouping example)',
+        'sql' => "SELECT v.nationality, COUNT(b.booking_id) AS bookings_count
+FROM Bookings b
+JOIN Visitors v ON b.visitor_id = v.visitor_id
+GROUP BY v.nationality
+ORDER BY bookings_count DESC
+LIMIT 50"
+    ],
+    'recent_reviews_join' => [
+        'title' => 'Recent reviews with visitor and site names (JOIN example)',
+        'sql' => "SELECT r.review_id, v.full_name AS visitor, COALESCE(hs.name,'(site)') AS site, r.rating, LEFT(r.comment,200) AS comment, r.review_date
+FROM Reviews r
+JOIN Visitors v ON r.visitor_id = v.visitor_id
+LEFT JOIN HeritageSites hs ON r.site_id = hs.site_id
+ORDER BY r.review_date DESC
 LIMIT 200"
     ],
 ];
@@ -258,11 +458,6 @@ body { background-color: #f8f9fa; }
         <h4 class="m-0">🏛️ Heritage Sites</h4>
         <div>
             <a class="btn btn-primary" href="site_edit.php">Add New Site</a>
-            <?php
-                $exportParams = $_GET;
-                $exportParams['export'] = 'csv';
-                echo '<a class="btn btn-outline-primary ms-2" href="?'.htmlspecialchars(http_build_query($exportParams)).'">Export CSV</a>';
-            ?>
         </div>
     </div>
 
@@ -270,49 +465,52 @@ body { background-color: #f8f9fa; }
     <?php foreach ($errors as $e): ?><div class="alert alert-danger"><?= h($e) ?></div><?php endforeach; ?>
 
     <!-- SQL Runner -->
-    <div class="sql-card row g-2 align-items-center mb-3">
-        <div class="col-md-6">
-            <strong>🧾 Safe SQL Runner</strong>
-            <div class="small text-muted">Choose a predefined read-only query for demos (joins, aggregates, group by). Results appear below.</div>
+    <div class="card mb-3 p-3 shadow-sm">
+      <form method="post" class="row g-2 align-items-center">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+        <input type="hidden" name="action" value="run_query">
+        <div class="col-md-8">
+          <select name="query_key" class="form-select" required>
+            <option value="">-- Select Demo Query --</option>
+            <?php foreach ($safe_queries as $k => $q): ?>
+              <option value="<?= htmlspecialchars($k) ?>" <?= ($selected_query_key === $k) ? 'selected' : '' ?>><?= htmlspecialchars($q['title']) ?></option>
+            <?php endforeach; ?>
+          </select>
         </div>
         <div class="col-md-4">
-            <form method="post" class="d-flex gap-2">
-                <input type="hidden" name="csrf_token" value="<?= h($_SESSION['csrf_token']) ?>">
-                <input type="hidden" name="action" value="run_query">
-                <select name="query_key" class="form-select" required>
-                    <option value="">-- Select query --</option>
-                    <?php foreach ($safe_queries as $k => $qi): ?>
-                        <option value="<?= h($k) ?>" <?= ($selected_query_key === $k) ? 'selected' : '' ?>><?= h($qi['title']) ?></option>
-                    <?php endforeach; ?>
-                </select>
-                <button class="btn btn-primary">Run</button>
-            </form>
+          <button class="btn btn-primary w-100">Run Selected Query</button>
         </div>
-        <div class="col-md-2 text-end">
-            <a class="btn btn-outline-secondary" href="site_edit.php">Add Site</a>
-        </div>
+      </form>
     </div>
 
     <?php if ($query_result !== null): ?>
-        <div class="card mb-3 p-3">
-            <h6>Query Result: <?= h($safe_queries[$selected_query_key]['title'] ?? '') ?> (<?= count($query_result) ?> rows)</h6>
-            <?php if (count($query_result) === 0): ?>
-                <div class="text-muted">No rows returned</div>
-            <?php else: ?>
-                <div style="overflow:auto; max-height:420px;">
-                    <table class="table table-sm table-bordered">
-                        <thead class="table-dark">
-                            <tr><?php foreach (array_keys($query_result[0]) as $col): ?><th><?= h($col) ?></th><?php endforeach; ?></tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($query_result as $r): ?>
-                                <tr><?php foreach ($r as $c): ?><td><?= h($c) ?></td><?php endforeach; ?></tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            <?php endif; ?>
-        </div>
+      <div class="card p-3 mb-4">
+        <h6>Query Result: <?= htmlspecialchars($safe_queries[$selected_query_key]['title'] ?? '') ?> (<?= count($query_result) ?> rows)</h6>
+        <?php if (count($query_result) === 0): ?>
+          <div class="text-muted">No results found.</div>
+        <?php else: ?>
+          <div style="overflow:auto; max-height:480px;">
+            <table class="table table-bordered table-sm">
+              <thead class="table-dark">
+                <tr>
+                  <?php foreach (array_keys($query_result[0]) as $col): ?>
+                    <th><?= htmlspecialchars($col) ?></th>
+                  <?php endforeach; ?>
+                </tr>
+              </thead>
+              <tbody>
+                <?php foreach ($query_result as $row): ?>
+                  <tr>
+                    <?php foreach ($row as $val): ?>
+                      <td><?= htmlspecialchars((string)$val) ?></td>
+                    <?php endforeach; ?>
+                  </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        <?php endif; ?>
+      </div>
     <?php endif; ?>
 
     <!-- Filters -->
