@@ -4,18 +4,18 @@ session_start();
 require_once __DIR__ . '/includes/headerFooter.php'; // optional UI header/footer; keeps session handling consistent
 require_once __DIR__ . '/includes/db_connect.php';   // must provide $pdo (PDO)
 
-// ----------------- Validate Input -----------------
+//  . Validate Input  .
 $site_id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
 if (!$site_id) {
     http_response_code(400);
     exit('Invalid site ID.');
 }
 
-// ----------------- Helper -----------------
+//  . Helper  .
 function h($v){ return htmlspecialchars((string)$v, ENT_QUOTES|ENT_HTML5); }
 function to_float($v){ return (float)($v ?? 0.0); }
 
-// ----------------- Fetch Site Details -----------------
+//  . Fetch Site Details  .
 $stmt = $pdo->prepare("SELECT * FROM HeritageSites WHERE site_id = :id");
 $stmt->execute(['id' => $site_id]);
 $site = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -34,7 +34,7 @@ if (array_key_exists('latitude', $site) && array_key_exists('longitude', $site))
     $hasLatLng = ($latitude !== null && $longitude !== null);
 }
 
-// ----------------- Fetch Events -----------------
+//  . Fetch Events  .
 $evStmt = $pdo->prepare("SELECT e.*, 
     COALESCE((SELECT COUNT(*) FROM Bookings b WHERE b.event_id = e.event_id),0) AS booked_tickets
     FROM Events e
@@ -44,7 +44,7 @@ $evStmt = $pdo->prepare("SELECT e.*,
 $evStmt->execute(['sid' => $site_id]);
 $events = $evStmt->fetchAll(PDO::FETCH_ASSOC);
 
-// ----------------- Fetch Reviews -----------------
+//  . Fetch Reviews  .
 $revStmt = $pdo->prepare("
     SELECT r.review_id, r.rating, r.comment, r.review_date, v.full_name AS visitor_name
     FROM Reviews r
@@ -56,7 +56,7 @@ $revStmt = $pdo->prepare("
 $revStmt->execute(['sid' => $site_id]);
 $reviews = $revStmt->fetchAll(PDO::FETCH_ASSOC);
 
-// ----------------- Site-level aggregates -----------------
+//  . Site-level aggregates  .
 $aggStmt = $pdo->prepare("
     SELECT 
       COALESCE((SELECT COUNT(*) FROM Bookings b WHERE b.site_id = :sid),0) AS total_bookings,
@@ -67,7 +67,7 @@ $aggStmt = $pdo->prepare("
 $aggStmt->execute(['sid' => $site_id]);
 $agg = $aggStmt->fetch(PDO::FETCH_ASSOC);
 
-// ----------------- Guides assigned to site -----------------
+//  . Guides assigned to site  .
 $guidesStmt = $pdo->prepare("
     SELECT g.guide_id, g.full_name, g.language, g.specialization
     FROM Assignments a
@@ -78,7 +78,7 @@ $guidesStmt = $pdo->prepare("
 $guidesStmt->execute(['sid' => $site_id]);
 $assignedGuides = $guidesStmt->fetchAll(PDO::FETCH_ASSOC);
 
-// ----------------- Related / Nearby / Suggested sites (same type) -----------------
+//  . Related / Nearby / Suggested sites (same type)  .
 $relatedStmt = $pdo->prepare("
     SELECT site_id, name, location, ticket_price 
     FROM HeritageSites 
@@ -89,7 +89,7 @@ $relatedStmt = $pdo->prepare("
 $relatedStmt->execute(['type' => $site['type'] ?? '', 'sid' => $site_id]);
 $relatedSites = $relatedStmt->fetchAll(PDO::FETCH_ASSOC);
 
-// ----------------- Payment methods dynamically loaded from Payments.method enum -----------------
+//  . Payment methods dynamically loaded from Payments.method enum  .
 $paymentMethods = ['bkash','nagad','rocket','card','bank_transfer']; // fallback
 try {
     $col = $pdo->query("SHOW COLUMNS FROM Payments LIKE 'method'")->fetch(PDO::FETCH_ASSOC);
@@ -108,19 +108,19 @@ try {
     // ignore, keep fallback
 }
 
-// ----------------- Login Status + CSRF (for booking + review forms) -----------------
+//  . Login Status + CSRF (for booking + review forms)  .
 $loggedIn = isset($_SESSION['visitor_id']);
 if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 $csrf = $_SESSION['csrf_token'];
 
-// ----------------- Safety: ensure numeric formatting uses floats -----------------
+//  . Safety: ensure numeric formatting uses floats  .
 $site_ticket_price = to_float($site['ticket_price'] ?? 0.0);
 $agg['revenue'] = to_float($agg['revenue'] ?? 0.0);
 $agg['avg_rating'] = $agg['avg_rating'] !== null ? to_float($agg['avg_rating']) : null;
 $agg['total_bookings'] = (int)($agg['total_bookings'] ?? 0);
 $agg['total_reviews'] = (int)($agg['total_reviews'] ?? 0);
 
-// ----------------- Page rendering -----------------
+//  . Page rendering  .
 ?>
 <!doctype html>
 <html lang="en">

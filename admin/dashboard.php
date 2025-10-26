@@ -9,20 +9,17 @@ if (empty($_SESSION['admin_logged_in'])) {
   exit;
 }
 
-// ========== Input Filters ==========
 $methodFilter = $_GET['method'] ?? '';
 $guideFilter  = $_GET['guide_id'] ?? '';
 $siteFilter   = $_GET['site_id'] ?? '';
 $dateFilter   = $_GET['date'] ?? '';
-$timeRange    = $_GET['range'] ?? '6m'; // optional: '6m', '12m', '3m', 'ytd'
+$timeRange    = $_GET['range'] ?? '6m'; 
 
-// Helper: sanitize for HTML
 function e($s)
 {
   return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8');
 }
 
-// ========== Utility for date range ==========
 switch ($timeRange) {
   case '3m':
     $interval = '3 MONTH';
@@ -39,7 +36,6 @@ switch ($timeRange) {
     break;
 }
 
-// ========== STATS ==========
 try {
   // Total heritage sites
   $total_sites = (int) $pdo->query('SELECT COUNT(*) FROM HeritageSites')->fetchColumn();
@@ -65,9 +61,8 @@ try {
   $total_revenue = (float) $pdo->query("
         SELECT IFNULL(SUM(amount),0) FROM Payments WHERE status IN ('successful','success')
     ")->fetchColumn();
-  /* ===========================================================
-   🔹 LAB 4 – Aggregates, Grouping, HAVING
-   =========================================================== */
+
+   //LAB 4 – Aggregates, Grouping, HAVING
   $totalRevenue = $pdo->query("
 SELECT method, SUM(amount) AS total 
 FROM Payments 
@@ -127,14 +122,11 @@ LIMIT 5
     (SELECT site_id, name FROM HeritageSites WHERE site_id IN (SELECT site_id FROM Reviews))
 ")->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $ex) {
-  // If something goes wrong, set safe defaults
   $total_sites = $total_visitors = $total_bookings = 0;
   $avg_rating_overall = $avg_ticket_price = $total_revenue = 0;
 }
 
-/*
- * Bookings by month (chart) - respect timeRange when not 'ytd'
- */
+/*Bookings by month (chart) - respect timeRange when not 'ytd'*/
 try {
   if ($timeRange === 'ytd') {
     $stmt = $pdo->prepare("
@@ -161,9 +153,7 @@ try {
   $bookings_month = [];
 }
 
-/*
- * Monthly revenue (last 12 months)
- */
+/*Monthly revenue (last 12 months)*/
 try {
   $stmt = $pdo->prepare("
         SELECT DATE_FORMAT(p.paid_at, '%Y-%m') AS ym, IFNULL(SUM(p.amount),0) AS revenue
@@ -179,9 +169,7 @@ try {
   $monthly_revenue = [];
 }
 
-/*
- * Revenue by method (apply method filter if provided)
- */
+/*Revenue by method (apply method filter if provided)*/
 try {
   $q = "SELECT p.method, IFNULL(SUM(p.amount),0) AS total
           FROM Payments p
@@ -196,9 +184,7 @@ try {
   $revenue_methods = [];
 }
 
-/*
- * Payment statuses distribution
- */
+/*Payment statuses distribution*/
 try {
   $stmt = $pdo->prepare("
       SELECT p.status, COUNT(*) AS cnt
@@ -211,9 +197,7 @@ try {
   $payment_status = [];
 }
 
-/*
- * Top sites by bookings
- */
+/*Top sites by bookings*/
 try {
   $stmt = $pdo->prepare("
         SELECT hs.site_id, hs.name, COUNT(b.booking_id) AS bookings_count
@@ -229,9 +213,7 @@ try {
   $top_sites = [];
 }
 
-/*
- * Site ratings (average)
- */
+/*Site ratings (average)*/
 try {
   $stmt = $pdo->prepare("
         SELECT hs.site_id, hs.name, ROUND(AVG(r.rating),1) AS avg_rating, COUNT(r.review_id) AS reviews_count
@@ -294,9 +276,7 @@ try {
   $reviewsData = [];
 }
 
-/*
- * Bookings by visitor nationality (top nationalities)
- */
+/*Bookings by visitor nationality (top nationalities)*/
 try {
   $stmt = $pdo->prepare("
       SELECT v.nationality, COUNT(b.booking_id) AS cnt
@@ -312,7 +292,6 @@ try {
   $bookings_by_nationality = [];
 }
 
-// ========== Render HTML ==========
 ?>
 <!doctype html>
 <html lang="en">
@@ -326,19 +305,13 @@ try {
   <style>
     canvas {
       height: 220px !important;
-    }
-
-    .card-scroll {
+    }.card-scroll {
       max-height: 420px;
       overflow: auto;
-    }
-
-    .small-stat {
+    } .small-stat {
       font-size: 0.85rem;
       color: #666;
-    }
-
-    .truncate {
+    }.truncate {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -347,7 +320,6 @@ try {
     }
   </style>
 </head>
-
 <body>
   <div class="container py-3">
 
@@ -627,5 +599,4 @@ try {
     }
   </script>
 </body>
-
 </html>

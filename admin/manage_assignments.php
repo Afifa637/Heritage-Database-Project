@@ -89,9 +89,9 @@ $guides = $pdo->query('SELECT guide_id, full_name FROM Guides ORDER BY full_name
 $sites  = $pdo->query('SELECT site_id, name FROM HeritageSites ORDER BY name')->fetchAll(PDO::FETCH_ASSOC);
 $events = $pdo->query('SELECT event_id, name, site_id, event_date FROM Events ORDER BY event_date DESC')->fetchAll(PDO::FETCH_ASSOC);
 
-// ----------------------
+//  . .
 // SAFE SQL RUNNER whitelist (read-only SELECTs)
-// ----------------------
+//  . .
 $safe_queries = [
 
     // ===== LAB 2: DDL/DML Concepts =====
@@ -237,9 +237,9 @@ $safe_queries = [
     ],
 ];
 
-// ----------------------
+//  . .
 // SQL Runner execution (read-only safe)
-// ----------------------
+//  . .
 $query_result = null;
 $selected_query_key = '';
 

@@ -112,11 +112,11 @@ $events = $stmt->fetchAll(PDO::FETCH_ASSOC);
 $sites = $pdo->query('SELECT site_id, name FROM HeritageSites ORDER BY name')->fetchAll(PDO::FETCH_ASSOC);
 $unesco_statuses = ['None', 'Tentative', 'World Heritage'];
 
-// ----------------------
+//  . .
 // SAFE SQL RUNNER (read-only queries) - covers Lab 3–6
-// ----------------------
+//  . .
 $safe_queries = [
-  // ---------------- LAB 3: Filtering / Constraints / Range / Set Membership / Ordering ----------------
+  //  . .- LAB 3: Filtering / Constraints / Range / Set Membership / Ordering  . .-
   'filter_by_keyword' => [
     'title' => 'Filter: Events containing keyword "Festival" (LIKE)',
     'sql' => "SELECT e.event_id, e.name, e.event_date, s.name AS site_name
@@ -161,7 +161,7 @@ ORDER BY e.ticket_price DESC, e.event_date ASC
 LIMIT 200"
   ],
 
-  // ---------------- LAB 4: Aggregates / GROUP BY / HAVING ----------------
+  //  . .- LAB 4: Aggregates / GROUP BY / HAVING  . .-
   'count_events_per_site' => [
     'title' => 'Aggregates: Count events per site',
     'sql' => "SELECT s.site_id, s.name AS site_name, COUNT(e.event_id) AS events_count
@@ -190,7 +190,7 @@ HAVING total_capacity > 0
 ORDER BY total_capacity DESC"
   ],
 
-  // ---------------- LAB 5: Subqueries / Set Operations / Views ----------------
+  //  . .- LAB 5: Subqueries / Set Operations / Views  . .-
   'subquery_future_events' => [
     'title' => 'Subquery: Events at sites with >3 upcoming events',
     'sql' => "SELECT e.event_id, e.name, e.event_date, s.name AS site_name
@@ -267,7 +267,7 @@ ORDER BY total_revenue DESC
 LIMIT 200"
   ],
 
-  // ---------------- LAB 6: Joins (inner, outer, cross, natural, equi, non-equi, self) ----------------
+  //  . .- LAB 6: Joins (inner, outer, cross, natural, equi, non-equi, self)  . .-
   'inner_join_example' => [
     'title' => 'INNER JOIN: Events with corresponding sites',
     'sql' => "SELECT e.event_id, e.name AS event_name, s.name AS site_name, e.event_date, e.ticket_price

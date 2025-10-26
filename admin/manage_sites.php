@@ -1,27 +1,23 @@
 <?php
-// manage_sites.php (fixed number_format strict types)
 declare(strict_types=1);
 session_start();
 require_once 'headerFooter.php';
-require_once __DIR__ . '/../includes/db_connect.php'; // provides $pdo
+require_once __DIR__ . '/../includes/db_connect.php'; 
 
-// ---------- AUTH ----------
 if (empty($_SESSION['admin_logged_in'])) {
     header('Location: login.php');
     exit;
 }
 
-// ---------- CSRF ----------
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES | ENT_HTML5); }
 
-// ---------- Messages ----------
 $messages = [];
 $errors = [];
 
-// ---------- FILTERS & PAGINATION (validated) ----------
+//  . FILTERS & PAGINATION (validated)  .
 $filter_name = trim($_GET['filter_name'] ?? '');
 $filter_location = trim($_GET['filter_location'] ?? '');
 $filter_type = trim($_GET['filter_type'] ?? '');
@@ -32,17 +28,17 @@ $sort_price = trim($_GET['sort_price'] ?? '');
 $page = max(1, (int)($_GET['page'] ?? 1));
 $perPage = 5; // rows per page (changeable)
 
-// ---------- Dynamic dropdowns ----------
+//  . Dynamic dropdowns  .
 $locations = $pdo->query("SELECT DISTINCT location FROM HeritageSites WHERE location IS NOT NULL AND location != '' ORDER BY location ASC")->fetchAll(PDO::FETCH_COLUMN);
 $types = $pdo->query("SELECT DISTINCT type FROM HeritageSites WHERE type IS NOT NULL AND type != '' ORDER BY type ASC")->fetchAll(PDO::FETCH_COLUMN);
 
-// ---------- Global stats (for min/max attributes) ----------
+//  . Global stats (for min/max attributes)  .
 $globalStats = $pdo->query("SELECT COUNT(*) AS total, MIN(ticket_price) AS min_price, MAX(ticket_price) AS max_price, AVG(ticket_price) AS avg_price FROM HeritageSites")->fetch(PDO::FETCH_ASSOC);
 $globalMin = $globalStats['min_price'] !== null ? (float)$globalStats['min_price'] : 0.00;
 $globalMax = $globalStats['max_price'] !== null ? (float)$globalStats['max_price'] : 0.00;
 $globalAvg = $globalStats['avg_price'] !== null ? (float)$globalStats['avg_price'] : 0.00;
 
-// ---------- Build WHERE & params (safe prepared statements) ----------
+//  . Build WHERE & params (safe prepared statements)  .
 $where = ' WHERE 1=1';
 $params = [];
 
@@ -72,12 +68,12 @@ if ($filter_price_max !== null) {
     $params['price_max'] = $filter_price_max;
 }
 
-// ---------- ORDER BY (whitelisted) ----------
+//  . ORDER BY (whitelisted)  .
 $order_by = 'created_at DESC';
 if ($sort_price === 'asc') $order_by = 'ticket_price ASC';
 if ($sort_price === 'desc') $order_by = 'ticket_price DESC';
 
-// ---------- CSV EXPORT ----------
+//  . CSV EXPORT  .
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     $exportQuery = "SELECT site_id, name, location, type, opening_hours, ticket_price, unesco_status, description, created_at FROM HeritageSites $where ORDER BY $order_by";
     $exportStmt = $pdo->prepare($exportQuery);
@@ -106,7 +102,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     exit;
 }
 
-// ---------- Deletion (POST + CSRF) ----------
+//  . Deletion (POST + CSRF)  .
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id'])) {
     $del = (int)$_POST['delete_id'];
     $csrf = $_POST['csrf_token'] ?? '';
@@ -122,14 +118,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id'])) {
     }
 }
 
-// ---------- Pagination counts ----------
+//  . Pagination counts  .
 $totalStmt = $pdo->prepare("SELECT COUNT(*) FROM HeritageSites $where");
 $totalStmt->execute($params);
 $totalRows = (int)$totalStmt->fetchColumn();
 $totalPages = max(1, (int)ceil($totalRows / $perPage));
 $offset = ($page - 1) * $perPage;
 
-// ---------- Fetch filtered/paginated rows ----------
+//  . Fetch filtered/paginated rows  .
 $query = "SELECT * FROM HeritageSites $where ORDER BY $order_by LIMIT :offset, :perPage";
 $stmt = $pdo->prepare($query);
 foreach ($params as $k => $v) $stmt->bindValue(':'.$k, $v);
@@ -138,17 +134,13 @@ $stmt->bindValue(':perPage', (int)$perPage, PDO::PARAM_INT);
 $stmt->execute();
 $sites = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// ---------- Filtered stats (for display) ----------
+//  . Filtered stats (for display)  .
 $filteredStatsStmt = $pdo->prepare("SELECT COUNT(*) AS total, MIN(ticket_price) AS min_price, MAX(ticket_price) AS max_price, AVG(ticket_price) AS avg_price FROM HeritageSites $where");
 $filteredStatsStmt->execute($params);
 $filteredStats = $filteredStatsStmt->fetch(PDO::FETCH_ASSOC);
 
-// ----------------------
-// SAFE SQL RUNNER whitelist (read-only SELECTs)
-// Covers Lab 2..Lab 6 topics with practical examples
-// ----------------------
 $safe_queries = [
-    // ----- LAB 2: DDL / DML inspection (read-only) -----
+    //  . LAB 2: DDL / DML inspection (read-only)  .
     'ddl_tables_columns' => [
         'title' => 'DDL: Tables & columns (information_schema)',
         'sql' => "SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT
@@ -173,7 +165,7 @@ WHERE TABLE_SCHEMA = DATABASE()
 LIMIT 200"
     ],
 
-    // ----- LAB 3: Filtering, Constraints, Range Search, Set Membership, Ordering -----
+    //  . LAB 3: Filtering, Constraints, Range Search, Set Membership, Ordering  .
     'filter_by_type_and_location' => [
         'title' => 'Filter: Sites by type and location (example)',
         'sql' => "SELECT site_id, name, location, type, ticket_price
@@ -213,7 +205,7 @@ WHERE site_id IS NOT NULL AND event_id IS NOT NULL
 LIMIT 100"
     ],
 
-    // ----- LAB 4: Aggregates, GROUP BY, HAVING -----
+    //  . LAB 4: Aggregates, GROUP BY, HAVING  .
     'sites_by_unesco' => [
         'title' => 'Sites grouped by UNESCO status (COUNT/ORDER)',
         'sql' => "SELECT unesco_status, COUNT(*) AS sites_count
@@ -241,7 +233,7 @@ HAVING total_revenue > 0
 ORDER BY total_revenue DESC"
     ],
 
-    // ----- LAB 5: Subqueries & Set Operations (UNION, INTERSECT emulation, EXCEPT emulation), Views -----
+    //  . LAB 5: Subqueries & Set Operations (UNION, INTERSECT emulation, EXCEPT emulation), Views  .
     'sites_with_events_subquery' => [
         'title' => 'Subquery: Sites that have at least one future event',
         'sql' => "SELECT name, site_id
@@ -297,7 +289,7 @@ ORDER BY revenue DESC
 LIMIT 200"
     ],
 
-    // ----- LAB 6: JOINS — inner, left, right (emulated), cross, natural, self-join, non-equi, equi join -----
+    //  . LAB 6: JOINS — inner, left, right (emulated), cross, natural, self-join, non-equi, equi join  .
     'inner_join_bookings_payments' => [
         'title' => 'Inner JOIN: Bookings with successful payments (joined details)',
         'sql' => "SELECT b.booking_id, v.full_name AS visitor, hs.name AS site, p.amount, p.method, p.status
@@ -365,10 +357,10 @@ FROM Assignments a
 JOIN Guides g ON a.guide_id = g.guide_id
 LEFT JOIN HeritageSites s ON a.site_id = s.site_id
 ORDER BY a.assign_id
-LIMIT 400"
+LIMIT 40"
     ],
 
-    // ----- Practical / mixed queries useful for labs -----
+    //  . Practical / mixed queries useful for labs  .
     'top_sites_by_bookings' => [
         'title' => 'Top sites by successful payments (revenue)',
         'sql' => "SELECT s.site_id, s.name, COALESCE(SUM(p.amount),0) AS revenue, COUNT(DISTINCT b.booking_id) AS bookings

@@ -1,5 +1,4 @@
 <?php
-// manage_payments.php
 declare(strict_types=1);
 session_start();
 require_once 'headerFooter.php';
@@ -9,7 +8,6 @@ if (empty($_SESSION['admin_logged_in'])) {
     exit;
 }
 
-// CSRF token
 if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
 // Utility
@@ -101,8 +99,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $ins = $pdo->prepare("INSERT IGNORE INTO PaymentMethods (code,label) VALUES (?, ?)");
                 $ins->execute([$code, $label]);
 
-                // Now update Payments.method enum to include this new value (if not already present).
-                // Read existing enum definition
                 $row = $pdo->query("SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Payments' AND COLUMN_NAME = 'method' LIMIT 1")->fetch(PDO::FETCH_ASSOC);
                 $current_enum = $row['COLUMN_TYPE'] ?? null;
                 if ($current_enum && preg_match("/^enum\((.*)\)$/i", $current_enum, $m)) {
@@ -187,7 +183,6 @@ if (!empty($_GET['q'])) {
 }
 
 // Filter by method
-// methods list will come from PaymentMethods if present
 $method_filter = $_GET['method'] ?? '';
 if ($method_filter !== '') {
     $where[] = "p.method = :method";
@@ -285,18 +280,14 @@ $methodCounts = $pdo->query("SELECT method, COUNT(*) AS cnt FROM Payments GROUP 
             text-align: center;
             margin-bottom: 1rem;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-        }
-
-        pre.sql-block {
+        } pre.sql-block {
             background: #0b1220;
             color: #e6f0ff;
             padding: 10px;
             border-radius: 6px;
             overflow: auto;
             font-size: 0.9rem;
-        }
-
-        .small-muted {
+        } .small-muted {
             font-size: 0.85rem;
             color: #6c757d;
         }
@@ -406,7 +397,6 @@ $methodCounts = $pdo->query("SELECT method, COUNT(*) AS cnt FROM Payments GROUP 
     <div class="col-md-2"><input type="number" name="max_amount" class="form-control" placeholder="Max" value="<?= h($_GET['max_amount'] ?? '') ?>"></div>
 
     <div class="col-md-3"><label>From</label><input type="date" name="from_date" class="form-control" value="<?= h($_GET['from_date'] ?? '') ?>"></div>
-    <div class="col-md-3"><label>To</label><input type="date" name="to_date" class="form-control" value="<?= h($_GET['to_date'] ?? '') ?>"></div>
     <div class="col-md-2 align-self-end"><button class="btn btn-primary w-100">Filter</button></div>
   </form>
 

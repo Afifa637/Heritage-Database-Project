@@ -17,7 +17,7 @@ if (empty($_SESSION['csrf_token'])) {
 // LAB DEMO: SAFE SQL RUNNER (READ-ONLY) – LAB 2–6 Coverage
 // ========================================================
 $safe_queries = [
-  // ---------- LAB 2: DDL + DML + UPDATE/ALTER Examples ----------
+  //  . LAB 2: DDL + DML + UPDATE/ALTER Examples  .
   'guides_basic_info' => [
     'title' => 'All guides (basic DML SELECT example)',
     'sql' => "SELECT guide_id, full_name, language, specialization, salary FROM Guides ORDER BY full_name ASC LIMIT 200"
@@ -35,7 +35,7 @@ $safe_queries = [
               WHERE TABLE_NAME = 'Guides' AND TABLE_SCHEMA = DATABASE()"
   ],
 
-  // ---------- LAB 3: Filtering, Constraints, Range Search, Set Membership ----------
+  //  . LAB 3: Filtering, Constraints, Range Search, Set Membership  .
   'guides_salary_range' => [
     'title' => 'Guides within mid-range salary (BETWEEN)',
     'sql' => "SELECT guide_id, full_name, salary
@@ -58,7 +58,7 @@ $safe_queries = [
               ORDER BY salary DESC"
   ],
 
-  // ---------- LAB 4: Aggregates ----------
+  //  . LAB 4: Aggregates  .
   'salary_aggregates' => [
     'title' => 'Salary statistics (AVG, MAX, MIN, COUNT)',
     'sql' => "SELECT COUNT(*) AS total_guides,
@@ -76,7 +76,7 @@ $safe_queries = [
               ORDER BY total_guides DESC"
   ],
 
-  // ---------- LAB 5: Subqueries + Set Operations + Views ----------
+  //  . LAB 5: Subqueries + Set Operations + Views  .
   'above_average_guides' => [
     'title' => 'Guides earning above average salary (Subquery)',
     'sql' => "SELECT guide_id, full_name, salary
@@ -113,7 +113,7 @@ $safe_queries = [
               ORDER BY salary DESC"
   ],
 
-  // ---------- LAB 6: Joins ----------
+  //  . LAB 6: Joins  .
   'guides_with_sites' => [
     'title' => 'Guides assigned to sites (INNER JOIN)',
     'sql' => "SELECT g.full_name, g.language, s.name AS site_name

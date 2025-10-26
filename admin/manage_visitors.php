@@ -5,7 +5,7 @@ session_start();
 require_once 'headerFooter.php';
 require_once __DIR__ . '/../includes/db_connect.php';
 
-// ---------- AUTH ----------
+//  . AUTH  .
 if (empty($_SESSION['admin_logged_in'])) {
     header('Location: login.php');
     exit;
@@ -110,9 +110,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// ----------------------
+//  . .
 // SAFE SQL RUNNER: whitelist of read-only SELECTs
-// ----------------------
+//  . .
 $safe_queries = [
     'recent_visitors' => [
         'title' => 'Recent visitors (last 100)',

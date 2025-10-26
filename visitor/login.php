@@ -73,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <div class="container d-flex justify-content-center align-items-center min-vh-100">
   <div class="heritage-card p-4 shadow-lg" style="max-width: 420px; width: 100%;">
     <div class="text-center mb-4">
-      <img src="/Heritage-Database-Project/assets/logo.png" alt="Heritage Logo" class="heritage-logo">
+      
       <h2 class="heritage-header">Visitor Login</h2>
       <p class="text-muted small">Explore Bangladesh’s timeless heritage sites</p>
     </div>
